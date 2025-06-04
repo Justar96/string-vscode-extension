@@ -128,3 +128,5 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+/mcp-codebase-server-use_for_example_only
+/.idea

@@ -1,2 +1,0 @@
-# string-vscode-extension
-
