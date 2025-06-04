@@ -1,6 +1,8 @@
-# String Codebase Indexer
+# String VS Code Extension
 
-A Visual Studio Code extension for streaming code chunks to MCP (Model Context Protocol) servers with real-time webhook notifications. This extension provides intelligent file scanning, selective indexing, and asynchronous processing with immediate feedback through webhook integration.
+A Visual Studio Code extension for streaming code chunks to backend servers with real-time webhook notifications. This extension provides intelligent file scanning, selective indexing, and asynchronous processing with immediate feedback through webhook integration.
+
+> **📋 For Developers**: This is an open-source extension template. See [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md) for configuration and customization instructions.
 
 ## Core Features
 
@@ -27,7 +29,7 @@ A Visual Studio Code extension for streaming code chunks to MCP (Model Context P
 ### Server Connection
 ```json
 {
-  "string-codebase-indexer.url": "https://mcp.rabtune.com",
+  "string-codebase-indexer.url": "http://localhost:8000",
   "string-codebase-indexer.apiKey": "",
   "string-codebase-indexer.maxChunkSize": 1000
 }
@@ -54,7 +56,7 @@ A Visual Studio Code extension for streaming code chunks to MCP (Model Context P
 ```
 
 #### Configuration Details
-- **url**: MCP server endpoint for chunk submission
+- **url**: Backend server endpoint for chunk submission (configure this for your server)
 - **apiKey**: Optional Bearer token for server authentication
 - **maxChunkSize**: Character limit per code chunk (affects memory usage and processing granularity)
 - **enableWebhooks**: Controls webhook server initialization and payload enhancement
@@ -65,9 +67,9 @@ A Visual Studio Code extension for streaming code chunks to MCP (Model Context P
 ## Usage
 
 ### Installation and Setup
-1. Install the extension from the VS Code marketplace
-2. Configure MCP server settings in VS Code preferences (`Ctrl+,`)
-3. Ensure your MCP server supports the `/index/chunk` endpoint
+1. Install the extension from VS Code marketplace or build from source
+2. Configure server settings in VS Code preferences (`Ctrl+,`)
+3. Ensure your backend server supports the `/index/chunk` endpoint
 4. Optionally configure webhook settings if your server supports job notifications
 
 ### File Selection Interface
@@ -89,7 +91,7 @@ The extension adds a "MCP Indexer" tree view to the Explorer sidebar with the fo
 - `MCP: Scan and Select Files` - Trigger workspace file discovery
 - `MCP: Toggle Auto-indexing` - Control automatic file change monitoring
 
-## MCP Server Integration
+## Backend Server Integration
 
 ### Request Format
 The extension sends HTTP POST requests to the `/index/chunk` endpoint. When webhooks are enabled, the payload includes additional metadata for job tracking:
@@ -112,7 +114,7 @@ The extension sends HTTP POST requests to the `/index/chunk` endpoint. When webh
 ```
 
 ### Webhook Response Protocol
-When processing is complete, the MCP server should send an HTTP POST request to the provided webhook URL:
+When processing is complete, the backend server should send an HTTP POST request to the provided webhook URL:
 
 ```json
 {
@@ -138,13 +140,13 @@ When processing is complete, the MCP server should send an HTTP POST request to 
 - If webhook delivery fails, the extension gracefully falls back to standard processing flow
 - Server implementations should handle webhook delivery asynchronously to avoid blocking chunk processing
 
-Reference implementation available in `mcp_server_example.py`.
+Reference implementation examples available in the documentation.
 
 ## Requirements
 
 ### Runtime Requirements
 - Visual Studio Code 1.100.0 or higher
-- Network access to MCP server endpoint
+- Network access to your backend server endpoint
 - Available TCP port for webhook server (default: 3000, configurable)
 
 ### Development Requirements
@@ -152,8 +154,8 @@ Reference implementation available in `mcp_server_example.py`.
 - TypeScript 5.8.3 or higher
 - npm or yarn package manager
 
-### Server Requirements
-- MCP server implementing `/index/chunk` endpoint
+### Backend Server Requirements
+- Server implementing `/index/chunk` endpoint
 - Optional: Webhook support for real-time notifications
 - HTTP/HTTPS connectivity to VS Code webhook server (localhost)
 
@@ -167,8 +169,8 @@ Reference implementation available in `mcp_server_example.py`.
 
 ### Building from Source
 ```bash
-git clone <repository-url>
-cd mcp-codebase-indexer
+git clone https://github.com/your-username/your-repo-name.git
+cd your-repo-name
 npm install
 npm run compile
 ```

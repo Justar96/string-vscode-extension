@@ -1,3 +1,26 @@
+/**
+ * String VS Code Extension - Main Entry Point
+ * 
+ * This extension provides intelligent codebase indexing with real-time processing
+ * dashboard and webhook notifications. It allows users to select files from their
+ * workspace and submit them to a backend server for AI processing.
+ * 
+ * Key Features:
+ * - Tree view file selector with checkbox selection
+ * - Real-time webhook notifications
+ * - Live dashboard with processing metrics
+ * - Configurable chunk sizes and batch processing
+ * - Auto-show views on startup
+ * 
+ * Architecture:
+ * - TreeDataProvider: Manages file selection UI
+ * - WebhookServer: Express.js server for real-time notifications
+ * - DashboardProvider: Live status updates and metrics
+ * - IndexingEngine: File processing and HTTP submission
+ * 
+ * For developers: See DEVELOPER_SETUP.md for configuration and customization
+ */
+
 import * as vscode from "vscode";
 import { promises as fs } from "fs";
 import * as path from "path";
@@ -618,6 +641,18 @@ function getOrCreateUserId(): string {
   return sessionUserId;
 }
 
+/**
+ * Webhook Server Setup
+ * 
+ * Starts an Express.js server to receive job completion notifications from the backend.
+ * This enables real-time UI updates when file processing is complete.
+ * 
+ * Configuration:
+ * - Port: string-codebase-indexer.webhookPort (default: 3000)
+ * - Enable/Disable: string-codebase-indexer.enableWebhooks
+ * 
+ * For developers: Customize webhook endpoints or add authentication here
+ */
 async function startWebhookServer() {
   const config = vscode.workspace.getConfiguration("string-codebase-indexer");
   const webhookEnabled = config.get<boolean>("enableWebhooks", true);
@@ -1130,8 +1165,8 @@ function toggleAutoIndex() {
   indexingState.autoIndexEnabled = !indexingState.autoIndexEnabled;
   updateStatusBar();
   const message = indexingState.autoIndexEnabled
-    ? "MCP Auto-indexing on file changes enabled."
-    : "MCP Auto-indexing on file changes disabled.";
+    ? "String Auto-indexing on file changes enabled."
+    : "String Auto-indexing on file changes disabled.";
   vscode.window.showInformationMessage(message);
 }
 
@@ -1249,7 +1284,7 @@ async function indexSelectedFiles(files: FileItem[]) {
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: "MCP: Indexing files...",
+      title: "String: Indexing files...",
       cancellable: true // User can click the notification to cancel
     },
     async (progress, token) => {
@@ -1320,11 +1355,11 @@ async function indexSelectedFiles(files: FileItem[]) {
       if (!wasCancelled) {
         indexingState.lastIndexed = new Date();
         const message = errorCount > 0 
-          ? `MCP indexing complete. ✓ ${successCount} files fully/partially indexed, ✗ ${errorCount} files had errors.`
-          : `MCP indexing complete! ✓ All ${successCount} selected files processed successfully.`;
+          ? `String indexing complete. ✓ ${successCount} files fully/partially indexed, ✗ ${errorCount} files had errors.`
+          : `String indexing complete! ✓ All ${successCount} selected files processed successfully.`;
         vscode.window.showInformationMessage(message);
       } else {
-        vscode.window.showInformationMessage(`MCP indexing was cancelled. ${successCount} files may have been processed before cancellation.`);
+        vscode.window.showInformationMessage(`String indexing was cancelled. ${successCount} files may have been processed before cancellation.`);
       }
 
       cleanupIndexingState();
@@ -1385,7 +1420,7 @@ async function sendChunkWithRetry(
         webhook_url: `http://localhost:${webhookPort}/webhook/job-complete`
       } : {})
     },
-    // Include chunk content and metadata in the format expected by MCP
+    // Include chunk content and metadata in the format expected by the backend
     content: chunkInfo.content,
     chunk_metadata: {
       ...chunkInfo.metadata,
@@ -1601,7 +1636,7 @@ async function indexSelectedFilesFromTree() {
   }
   const selectedFiles = treeDataProvider.getSelectedFiles();
   if (selectedFiles.length === 0) {
-    vscode.window.showWarningMessage("No files selected in the MCP Indexer tree. Please select files to index.");
+    vscode.window.showWarningMessage("No files selected in the String tree. Please select files to index.");
     return;
   }
 
@@ -1764,7 +1799,7 @@ class DashboardWebviewViewProvider implements vscode.WebviewViewProvider {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCP Status</title>
+    <title>String Status</title>
     <style>
         body {
             font-family: var(--vscode-font-family);
@@ -1984,7 +2019,7 @@ class DashboardWebviewViewProvider implements vscode.WebviewViewProvider {
 <body>
     <div class="header">
         <span class="status-indicator ${stats.vectorStoreReady ? 'status-ready' : (stats.activeJobs > 0 ? 'status-processing' : 'status-error')}"></span>
-        <h3>📊 MCP Status</h3>
+        <h3>📊 String Status</h3>
     </div>
     
     <div class="webhook-status">

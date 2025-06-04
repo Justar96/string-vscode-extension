@@ -3,16 +3,16 @@
   "displayName": "String",
   "description": "🚀 Codebase indexing with real-time processing dashboard and webhook notifications",
   "version": "0.0.4",
-  "publisher": "justar",
+  "publisher": "your-publisher-name",
   "license": "MIT",
   "icon": "icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Justar96/string-vscode-extension.git"
+    "url": "https://github.com/your-username/your-repo-name.git"
   },
-  "homepage": "https://github.com/Justar96/string-vscode-extension/blob/main/README.md",
+  "homepage": "https://github.com/your-username/your-repo-name#readme",
   "bugs": {
-    "url": "https://github.com/Justar96/string-vscode-extension/issues"
+    "url": "https://github.com/your-username/your-repo-name/issues"
   },
   "keywords": [
     "codebase",
@@ -208,8 +208,8 @@
       "properties": {
         "string-codebase-indexer.url": {
           "type": "string",
-          "default": "https://mcp.rabtune.com",
-          "description": "Base URL of your String server"
+          "default": "http://localhost:8000",
+          "description": "Base URL of your String server (e.g., http://localhost:8000 or https://your-server.com)"
         },
         "string-codebase-indexer.apiKey": {
           "type": "string",
