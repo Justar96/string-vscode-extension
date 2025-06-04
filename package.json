@@ -1,0 +1,295 @@
+{
+  "name": "string-codebase-indexer",
+  "displayName": "String Codebase Indexer",
+  "description": "🚀 Smart codebase indexing with real-time processing dashboard and webhook notifications",
+  "version": "0.0.4",
+  "publisher": "justar",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/string-codebase-indexer.git"
+  },
+  "homepage": "https://github.com/yourusername/string-codebase-indexer#readme",
+  "bugs": {
+    "url": "https://github.com/yourusername/string-codebase-indexer/issues"
+  },
+  "keywords": [
+    "codebase",
+    "indexing",
+    "ai",
+    "search",
+    "string",
+    "vector",
+    "embedding",
+    "dashboard"
+  ],
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mcpCodebaseIndexerContainer",
+          "title": "String Codebase Indexer",
+          "icon": "$(database)"
+        }
+      ]
+    },
+    "views": {
+      "mcpCodebaseIndexerContainer": [
+        {
+          "id": "mcpCodebaseIndexer",
+          "name": "📊 File Selector",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "id": "mcpStatusDashboardView",
+          "name": "📈 Live Dashboard",
+          "type": "webview",
+          "when": "workspaceFolderCount > 0"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mcpIndex.run",
+        "title": "String: Scan and Select Files",
+        "icon": "$(file-directory)"
+      },
+      {
+        "command": "mcpIndex.toggleAuto",
+        "title": "String: Toggle Auto-indexing",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "mcpIndex.showMenu",
+        "title": "String: Show Options Menu",
+        "icon": "$(menu)"
+      },
+
+      {
+        "command": "mcpIndex.refreshTree",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mcpIndex.selectAll",
+        "title": "Select All",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "mcpIndex.deselectAll",
+        "title": "Deselect All",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "mcpIndex.toggleFileSelection",
+        "title": "Toggle Selection",
+        "icon": "$(check)"
+      },
+      {
+        "command": "mcpIndex.indexSelectedFiles",
+        "title": "Index Selected Files",
+        "icon": "$(database)"
+      },
+      {
+        "command": "mcpIndex.selectFolder",
+        "title": "Select All Files in Folder",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "mcpIndex.deselectFolder",
+        "title": "Deselect All Files in Folder",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "mcpIndex.toggleFolderSelection",
+        "title": "Toggle Folder Selection",
+        "icon": "$(check)"
+      },
+      {
+        "command": "mcpIndex.openFile",
+        "title": "Open File",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "mcpIndex.stopIndexing",
+        "title": "Stop Indexing",
+        "icon": "$(stop)"
+      },
+      {
+        "command": "mcpIndex.openStatusDashboard",
+        "title": "Open Status Dashboard",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "mcpIndex.showBothViews",
+        "title": "String: Show Both Views",
+        "icon": "$(split-horizontal)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "mcpIndex.refreshTree",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mcpIndex.indexSelectedFiles",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "mcpIndex.selectAll",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "1_selection@1"
+        },
+        {
+          "command": "mcpIndex.deselectAll",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "1_selection@2"
+        },
+        {
+          "command": "mcpIndex.stopIndexing",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@3"
+        },
+        {
+          "command": "mcpIndex.openStatusDashboard",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@4"
+        },
+        {
+          "command": "mcpIndex.showBothViews",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mcpIndex.openFile",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFile",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mcpIndex.toggleFileSelection",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFile",
+          "group": "selection@1"
+        },
+        {
+          "command": "mcpIndex.toggleFolderSelection",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFolder",
+          "group": "selection@1"
+        },
+        {
+          "command": "mcpIndex.selectFolder",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFolder",
+          "group": "folder@1"
+        },
+        {
+          "command": "mcpIndex.deselectFolder",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFolder",
+          "group": "folder@2"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "properties": {
+        "string-codebase-indexer.url": {
+          "type": "string",
+          "default": "https://mcp.rabtune.com",
+          "description": "Base URL of your String server"
+        },
+        "string-codebase-indexer.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Bearer token if your String server requires auth"
+        },
+        "string-codebase-indexer.maxChunkSize": {
+          "type": "number",
+          "default": 1000,
+          "description": "Max characters per chunk"
+        },
+        "string-codebase-indexer.autoIndexOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically show file selection dialog on workspace startup"
+        },
+        "string-codebase-indexer.excludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules",
+            "venv",
+            ".venv",
+            "target",
+            "build",
+            "dist",
+            "__pycache__",
+            ".git"
+          ],
+          "description": "Patterns to exclude when scanning for files"
+        },
+        "string-codebase-indexer.batchSize": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Number of files to process concurrently (1-10, lower is safer for server)"
+        },
+        "string-codebase-indexer.webhookPort": {
+          "type": "number",
+          "default": 3000,
+          "description": "Port for webhook server to receive job completion notifications"
+        },
+        "string-codebase-indexer.enableWebhooks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time webhook notifications for job completion"
+        },
+        "string-codebase-indexer.showBothViewsOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically show both file tree and dashboard views when extension activates"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.22",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.100.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2"
+  }
+}

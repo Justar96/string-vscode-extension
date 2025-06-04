@@ -1,0 +1,35 @@
+# Development files
+src/**
+.vscode/**
+.vscode-test/**
+tsconfig.json
+eslint.config.mjs
+.gitignore
+.vscode-test.mjs
+
+# Test and build artifacts
+out/test/**
+**/*.map
+
+# Documentation and setup files
+vsc-extension-quickstart.md
+backend-team-docs/**
+SETUP_GUIDE.md
+ENHANCED_UI_GUIDE.md
+MCP_SERVER_INTEGRATION.md
+WEBHOOK_INTEGRATION.md
+WEBHOOK_SUMMARY.md
+BACKEND_COMPLIANCE_SUMMARY.md
+mcp_server_example.py
+termite-logo-v1.png
+
+# Node modules - include only what's necessary
+node_modules/**
+!node_modules/express/package.json
+!node_modules/express/index.js
+!node_modules/express/LICENSE
+!node_modules/express/lib/**
+!node_modules/node-fetch/package.json
+!node_modules/node-fetch/LICENSE.md
+!node_modules/node-fetch/src/**
+!node_modules/node-fetch/@types/**
