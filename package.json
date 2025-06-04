@@ -1,18 +1,18 @@
 {
   "name": "string-codebase-indexer",
-  "displayName": "String Codebase Indexer",
-  "description": "🚀 Smart codebase indexing with real-time processing dashboard and webhook notifications",
+  "displayName": "String",
+  "description": "🚀 Codebase indexing with real-time processing dashboard and webhook notifications",
   "version": "0.0.4",
   "publisher": "justar",
   "license": "MIT",
   "icon": "icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/string-codebase-indexer.git"
+    "url": "https://github.com/Justar96/string-vscode-extension.git"
   },
-  "homepage": "https://github.com/yourusername/string-codebase-indexer#readme",
+  "homepage": "https://github.com/Justar96/string-vscode-extension/blob/main/README.md",
   "bugs": {
-    "url": "https://github.com/yourusername/string-codebase-indexer/issues"
+    "url": "https://github.com/Justar96/string-vscode-extension/issues"
   },
   "keywords": [
     "codebase",
