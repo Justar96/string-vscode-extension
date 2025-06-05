@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import * as vscode from 'vscode';
 
 // ─── Core Data Types ───────────────────────────────────────────────────
 export interface FileItem {
@@ -154,4 +154,4 @@ export interface ExtensionConfig {
   secureServerEndpoint: string;
   defaultVectorStore?: string;
   credentialExpiryDays: number;
-} 
+}

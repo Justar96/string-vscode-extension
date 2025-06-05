@@ -1,6 +1,6 @@
-import * as path from "path";
-import * as vscode from "vscode";
-import { ExtensionConfig } from "./types";
+import * as path from 'path';
+import * as vscode from 'vscode';
+import { ExtensionConfig } from './types';
 
 // ─── File and Language Utilities ──────────────────────────────────────
 export function getLanguageFromPath(filePath: string): string {
@@ -19,32 +19,32 @@ export function formatFileSize(bytes: number): string {
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 // ─── Configuration Utilities ───────────────────────────────────────────
 export function getExtensionConfig(): ExtensionConfig {
-  const config = vscode.workspace.getConfiguration("string-codebase-indexer");
-  
+  const config = vscode.workspace.getConfiguration('string-codebase-indexer');
+
   return {
-    url: config.get("url", "https://mcp.rabtune.com"),
-    apiKey: config.get("apiKey", ""),
-    maxChunkSize: config.get("maxChunkSize", 1000),
-    autoIndexOnStartup: config.get("autoIndexOnStartup", false),
-    excludePatterns: config.get("excludePatterns", [
-      "node_modules", "venv", ".venv", "target", "build", "dist",
-      "__pycache__", ".git"
+    url: config.get('url', 'https://mcp.rabtune.com'),
+    apiKey: config.get('apiKey', ''),
+    maxChunkSize: config.get('maxChunkSize', 1000),
+    autoIndexOnStartup: config.get('autoIndexOnStartup', false),
+    excludePatterns: config.get('excludePatterns', [
+      'node_modules', 'venv', '.venv', 'target', 'build', 'dist',
+      '__pycache__', '.git'
     ]),
-    batchSize: config.get("batchSize", 3),
-    webhookPort: config.get("webhookPort", 3000),
-    enableWebhooks: config.get("enableWebhooks", true),
-    showBothViewsOnStartup: config.get("showBothViewsOnStartup", true),
+    batchSize: config.get('batchSize', 3),
+    webhookPort: config.get('webhookPort', 3000),
+    enableWebhooks: config.get('enableWebhooks', true),
+    showBothViewsOnStartup: config.get('showBothViewsOnStartup', true),
     // New multi-vector store config
-    enableMultiVectorStore: config.get("enableMultiVectorStore", false),
-    credentialEndpoint: config.get("credentialEndpoint", "https://secure.rabtune.com/credentials"),
-    secureServerEndpoint: config.get("secureServerEndpoint", "https://vault.rabtune.com"),
-    defaultVectorStore: config.get("defaultVectorStore", undefined),
-    credentialExpiryDays: config.get("credentialExpiryDays", 30)
+    enableMultiVectorStore: config.get('enableMultiVectorStore', false),
+    credentialEndpoint: config.get('credentialEndpoint', 'https://secure.rabtune.com/credentials'),
+    secureServerEndpoint: config.get('secureServerEndpoint', 'https://vault.rabtune.com'),
+    defaultVectorStore: config.get('defaultVectorStore', undefined),
+    credentialExpiryDays: config.get('credentialExpiryDays', 30)
   };
 }
 
@@ -87,12 +87,12 @@ export function anySignal(...signals: AbortSignal[]): AbortSignal {
 }
 
 // ─── File Pattern Utilities ────────────────────────────────────────────
-export const SUPPORTED_EXTENSIONS = "{py,ts,js,jsx,tsx,java,go,rs,cpp,c,h,hpp,cs,php,rb}";
+export const SUPPORTED_EXTENSIONS = '{py,ts,js,jsx,tsx,java,go,rs,cpp,c,h,hpp,cs,php,rb}';
 
 export function createFilePattern(workspaceFolder: vscode.WorkspaceFolder): vscode.RelativePattern {
   return new vscode.RelativePattern(workspaceFolder, `**/*.${SUPPORTED_EXTENSIONS}`);
 }
 
 export function createExcludeGlob(excludePatterns: string[]): string | undefined {
-  return excludePatterns.length > 0 ? `**/{${excludePatterns.join(",")}}/**` : undefined;
-} 
+  return excludePatterns.length > 0 ? `**/{${excludePatterns.join(',')}}/**` : undefined;
+}

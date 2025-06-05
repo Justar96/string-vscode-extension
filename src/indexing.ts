@@ -1,29 +1,43 @@
-import * as vscode from "vscode";
-import { promises as fs } from "fs";
-import * as path from "path";
-import { FileItem, ChunkTransmissionResult, FileIndexingStats, ChunkInfo, VectorStoreSelectionContext } from "./types";
-import { getExtensionConfig, getOrCreateUserId, anySignal } from "./utils";
-import { ContentChunker } from "./chunking";
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import * as vscode from 'vscode';
+import { ContentChunker } from './chunking';
+import {
+  ChunkInfo,
+  ChunkTransmissionResult,
+  FileIndexingStats,
+  FileItem,
+  VectorStoreSelectionContext
+} from './types';
+import { anySignal, getExtensionConfig, getOrCreateUserId } from './utils';
+
+// Add proper interface for vector store manager
+interface IVectorStoreManager {
+  selectBestVectorStore(context: VectorStoreSelectionContext): Promise<string | null>;
+  getConnection(storeId: string): Promise<any>;
+}
 
 export class FileIndexer {
   private contentChunker: ContentChunker;
-  private vectorStoreManager?: any; // Will be injected later
+  private vectorStoreManager?: IVectorStoreManager; // Proper typing instead of any
 
   constructor() {
     this.contentChunker = new ContentChunker();
   }
 
-  setVectorStoreManager(manager: any): void {
+  setVectorStoreManager(manager: IVectorStoreManager): void {
     this.vectorStoreManager = manager;
   }
 
-  private async selectVectorStoreForFile(file: FileItem): Promise<{ url: string; apiKey: string; storeId?: string }> {
+  private async selectVectorStoreForFile(
+    _file: FileItem
+  ): Promise<{ url: string; apiKey: string; storeId?: string }> {
     const config = getExtensionConfig();
-    
+
     // If multi-vector store is not enabled, use traditional config
     if (!config.enableMultiVectorStore || !this.vectorStoreManager) {
       return {
-        url: config.url.replace(/\/$/, ""),
+        url: config.url.replace(/\/$/, ''),
         apiKey: config.apiKey
       };
     }
@@ -38,12 +52,12 @@ export class FileIndexer {
 
     try {
       const selectedStoreId = await this.vectorStoreManager.selectBestVectorStore(selectionContext);
-      
+
       if (selectedStoreId) {
         const connection = await this.vectorStoreManager.getConnection(selectedStoreId);
         if (connection?.isConnected) {
           return {
-            url: connection.credentials.endpoint.replace(/\/$/, ""),
+            url: connection.credentials.endpoint.replace(/\/$/, ''),
             apiKey: connection.credentials.credentials.apiKey || '',
             storeId: selectedStoreId
           };
@@ -55,7 +69,7 @@ export class FileIndexer {
 
     // Fallback to traditional config
     return {
-      url: config.url.replace(/\/$/, ""),
+      url: config.url.replace(/\/$/, ''),
       apiKey: config.apiKey
     };
   }
@@ -67,36 +81,49 @@ export class FileIndexer {
     files: FileItem[],
     onProgress?: (current: number, total: number, fileName: string) => void,
     onJobStart?: (jobId: string, fileName: string) => void,
-    onJobComplete?: (jobId: string, success: boolean, chunksProcessed?: number, tokensGenerated?: number) => void,
+    onJobComplete?: (
+      jobId: string,
+      success: boolean,
+      chunksProcessed?: number,
+      tokensGenerated?: number
+    ) => void,
     abortSignal?: AbortSignal
   ): Promise<{ successCount: number; errorCount: number }> {
     let successCount = 0;
     let errorCount = 0;
     const config = getExtensionConfig();
     const batchSize = Math.max(1, Math.min(config.batchSize, 10));
-    
+
     for (let i = 0; i < files.length; i += batchSize) {
       if (abortSignal?.aborted) break;
 
       const batch = files.slice(i, Math.min(i + batchSize, files.length));
-      
+
       const batchPromises = batch.map(async (file, index) => {
         const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         onJobStart?.(jobId, file.relativePath);
-        
+
         try {
           // Select appropriate vector store for this file
           const { url, apiKey, storeId } = await this.selectVectorStoreForFile(file);
-          
+
           // Health check for the selected store
           await this.performHealthCheck(url, apiKey);
-          
-          const stats = await this.indexFile(file.uri, url, apiKey, config.maxChunkSize, abortSignal, jobId, storeId);
+
+          const stats = await this.indexFile(
+            file.uri,
+            url,
+            apiKey,
+            config.maxChunkSize,
+            abortSignal,
+            jobId,
+            storeId
+          );
           const estimatedTokens = Math.round(stats.totalBytes / 4);
-          
+
           onJobComplete?.(jobId, true, stats.successfulChunks, estimatedTokens);
           successCount++;
-          
+
           onProgress?.(i + index + 1, files.length, file.relativePath);
           return stats;
         } catch (error) {
@@ -108,7 +135,7 @@ export class FileIndexer {
       });
 
       await Promise.allSettled(batchPromises);
-      
+
       // Small delay between batches
       if (i + batchSize < files.length && !abortSignal?.aborted) {
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -128,19 +155,23 @@ export class FileIndexer {
     maxChunkSizeChars: number,
     abortSignal?: AbortSignal,
     jobId?: string,
-    storeId?: string
+    _storeId?: string
   ): Promise<FileIndexingStats> {
     const startTime = Date.now();
     const stats: FileIndexingStats = {
-      totalChunks: 0, successfulChunks: 0, failedChunks: 0,
-      totalBytes: 0, processingTimeMs: 0, errors: []
+      totalChunks: 0,
+      successfulChunks: 0,
+      failedChunks: 0,
+      totalBytes: 0,
+      processingTimeMs: 0,
+      errors: []
     };
 
     // Read file
     let fileContent: string;
     try {
       const fileBuffer = await fs.readFile(uri.fsPath);
-      fileContent = fileBuffer.toString("utf8");
+      fileContent = fileBuffer.toString('utf8');
       stats.totalBytes = fileBuffer.length;
     } catch (error: any) {
       stats.errors.push(`File read error: ${error.message}`);
@@ -154,31 +185,42 @@ export class FileIndexer {
     }
 
     const headers = {
-      "Content-Type": "application/json",
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      'Content-Type': 'application/json',
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
     };
 
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
-    const relativePath = workspaceFolder ? path.relative(workspaceFolder.uri.fsPath, uri.fsPath) : path.basename(uri.fsPath);
+    const relativePath = workspaceFolder
+      ? path.relative(workspaceFolder.uri.fsPath, uri.fsPath)
+      : path.basename(uri.fsPath);
 
-    const chunks = Array.from(this.contentChunker.createChunks(fileContent, maxChunkSizeChars, uri.fsPath));
+    const chunks = Array.from(
+      this.contentChunker.createChunks(fileContent, maxChunkSizeChars, uri.fsPath)
+    );
     stats.totalChunks = chunks.length;
 
     const config = getExtensionConfig();
     const concurrencyLimit = config.batchSize > 3 ? 2 : 1;
-    
+
     for (let i = 0; i < chunks.length; i += concurrencyLimit) {
       if (abortSignal?.aborted) {
-        stats.errors.push("Operation cancelled");
-        break; 
+        stats.errors.push('Operation cancelled');
+        break;
       }
 
       const chunkBatch = chunks.slice(i, Math.min(i + concurrencyLimit, chunks.length));
-      const batchPromises = chunkBatch.map(async (chunkInfo) => {
+      const batchPromises = chunkBatch.map(async chunkInfo => {
         if (abortSignal?.aborted) return;
 
         try {
-          const result = await this.sendChunkWithRetry(chunkInfo, relativePath, url, headers, abortSignal, jobId || '');
+          const result = await this.sendChunkWithRetry(
+            chunkInfo,
+            relativePath,
+            url,
+            headers,
+            abortSignal,
+            jobId || ''
+          );
           if (result.success) {
             stats.successfulChunks++;
           } else {
@@ -201,9 +243,9 @@ export class FileIndexer {
         await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
-    
-    if (abortSignal?.aborted && !stats.errors.includes("Operation cancelled")) {
-      stats.errors.push("Operation cancelled during chunk processing");
+
+    if (abortSignal?.aborted && !stats.errors.includes('Operation cancelled')) {
+      stats.errors.push('Operation cancelled during chunk processing');
     }
 
     stats.processingTimeMs = Date.now() - startTime;
@@ -226,9 +268,9 @@ export class FileIndexer {
     const endpoint = `${url}/index/chunk`;
 
     const config = getExtensionConfig();
-    
+
     const payload = {
-      job_type: "file_processing",
+      job_type: 'file_processing',
       user_id: getOrCreateUserId(),
       metadata: {
         file_path: filePathRelative,
@@ -236,13 +278,15 @@ export class FileIndexer {
         content_length: chunkInfo.content.length,
         hash: chunkInfo.hash,
         timestamp: new Date().toISOString(),
-        source: "vscode-extension",
-        extension_version: "0.0.5",
+        source: 'vscode-extension',
+        extension_version: '0.0.5',
         workspace_id: vscode.workspace.name || 'default',
         job_id: jobId,
-        ...(config.enableWebhooks ? { 
-          webhook_url: `http://localhost:${config.webhookPort}/webhook/job-complete`
-        } : {})
+        ...(config.enableWebhooks
+          ? {
+            webhook_url: `http://localhost:${config.webhookPort}/webhook/job-complete`
+          }
+          : {})
       },
       content: chunkInfo.content,
       chunk_metadata: {
@@ -254,22 +298,24 @@ export class FileIndexer {
 
     while (retryCount <= maxRetries) {
       if (abortSignal?.aborted) {
-        throw new Error("Indexing operation cancelled by user.");
+        throw new Error('Indexing operation cancelled by user.');
       }
 
       const attemptStartTime = Date.now();
       try {
-        const fetch = (await import("node-fetch")).default;
+        const fetch = (await import('node-fetch')).default;
         const requestController = new AbortController();
         const requestTimeoutId = setTimeout(() => requestController.abort(), 30000);
 
-        const combinedSignal = abortSignal ? anySignal(abortSignal, requestController.signal) : requestController.signal;
+        const combinedSignal = abortSignal
+          ? anySignal(abortSignal, requestController.signal)
+          : requestController.signal;
 
         const response = await fetch(endpoint, {
-          method: "POST",
+          method: 'POST',
           headers,
           body: JSON.stringify(payload),
-          signal: combinedSignal,
+          signal: combinedSignal
         });
 
         clearTimeout(requestTimeoutId);
@@ -280,16 +326,27 @@ export class FileIndexer {
           if (response.status >= 500 && retryCount < maxRetries) {
             throw new Error(`Server error ${response.status}: ${errorText} (will retry)`);
           }
-          return { success: false, error: `Server error ${response.status}: ${errorText}`, retryCount, processingTimeMs };
+          return {
+            success: false,
+            error: `Server error ${response.status}: ${errorText}`,
+            retryCount,
+            processingTimeMs
+          };
         }
 
         let responseData: any = {};
-        try { 
-          responseData = await response.json(); 
-        } catch (e) { /* Non-JSON response is ok */ }
-        
-        return { success: true, chunkId: responseData.chunk_id || responseData.job_id, retryCount, processingTimeMs };
+        try {
+          responseData = await response.json();
+        } catch {
+          /* Non-JSON response is ok */
+        }
 
+        return {
+          success: true,
+          chunkId: responseData.chunk_id || responseData.job_id,
+          retryCount,
+          processingTimeMs
+        };
       } catch (error: any) {
         const processingTimeMs = Date.now() - attemptStartTime;
         if (abortSignal?.aborted || error.name === 'AbortError') {
@@ -298,15 +355,25 @@ export class FileIndexer {
 
         retryCount++;
         if (retryCount > maxRetries) {
-          return { success: false, error: `Failed after ${maxRetries} retries: ${error.message}`, retryCount, processingTimeMs };
+          return {
+            success: false,
+            error: `Failed after ${maxRetries} retries: ${error.message}`,
+            retryCount,
+            processingTimeMs
+          };
         }
-        
+
         const delay = Math.pow(2, retryCount - 1) * 1000 + Math.random() * 500;
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
-    
-    return { success: false, error: "Max retries exceeded (unexpected path)", retryCount: maxRetries, processingTimeMs: 0 };
+
+    return {
+      success: false,
+      error: 'Max retries exceeded (unexpected path)',
+      retryCount: maxRetries,
+      processingTimeMs: 0
+    };
   }
 
   /**
@@ -314,24 +381,28 @@ export class FileIndexer {
    */
   private async performHealthCheck(url: string, apiKey: string): Promise<void> {
     try {
-      const fetch = (await import("node-fetch")).default;
+      const fetch = (await import('node-fetch')).default;
       const healthCheckController = new AbortController();
       const healthTimeoutId = setTimeout(() => healthCheckController.abort(), 5000);
-      
-      const response = await fetch(`${url}/health`, { 
-        method: "GET",
+
+      const response = await fetch(`${url}/health`, {
+        method: 'GET',
         signal: healthCheckController.signal,
         headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
       });
       clearTimeout(healthTimeoutId);
-      
+
       if (!response.ok) {
         throw new Error(`Server health check failed: ${response.status} ${response.statusText}`);
       }
-      console.log("String Server health check successful.");
+      console.log('String Server health check successful.');
     } catch (error) {
-      console.error("String Server health check failed:", error);
-      throw new Error(`Cannot connect to server at ${url}. Error: ${error instanceof Error ? error.message : String(error)}. Please check configuration and server status.`);
+      console.error('String Server health check failed:', error);
+      throw new Error(
+        `Cannot connect to server at ${url}. Error: ${
+          error instanceof Error ? error.message : String(error)
+        }. Please check configuration and server status.`
+      );
     }
   }
-} 
+}

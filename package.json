@@ -1,0 +1,408 @@
+{
+  "name": "string-codebase-indexer",
+  "displayName": "String",
+  "description": "🚀 Codebase indexing with multi-vector store support, real-time processing dashboard and webhook notifications",
+  "version": "0.0.8",
+  "publisher": "Justarr",
+  "license": "MIT",
+  "icon": "string-logo-v1.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Justar96/string-vscode-extension.git"
+  },
+  "homepage": "https://github.com/Justar96/string-vscode-extension/blob/main/README.md",
+  "bugs": {
+    "url": "https://github.com/Justar96/string-vscode-extension/issues"
+  },
+  "keywords": [
+    "codebase",
+    "indexing",
+    "ai",
+    "search",
+    "string",
+    "vector",
+    "embedding",
+    "dashboard",
+    "multi-vector-store",
+    "pinecone",
+    "weaviate",
+    "chroma",
+    "qdrant"
+  ],
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mcpCodebaseIndexerContainer",
+          "title": "String Codebase Indexer",
+          "icon": "$(type-hierarchy)"
+        }
+      ]
+    },
+    "views": {
+      "mcpCodebaseIndexerContainer": [
+        {
+          "id": "mcpCodebaseIndexer",
+          "name": "📊 File Selector",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "id": "mcpStatusDashboardView",
+          "name": "📈 Live Dashboard",
+          "type": "webview",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "id": "vectorStoreManagerView",
+          "name": "🔗 Vector Stores",
+          "type": "webview",
+          "when": "workspaceFolderCount > 0 && config.string-codebase-indexer.enableMultiVectorStore"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mcpIndex.run",
+        "title": "String: Scan and Select Files",
+        "icon": "$(file-directory)"
+      },
+      {
+        "command": "mcpIndex.toggleAuto",
+        "title": "String: Toggle Auto-indexing",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "mcpIndex.showMenu",
+        "title": "String: Show Options Menu",
+        "icon": "$(menu)"
+      },
+      {
+        "command": "mcpIndex.refreshTree",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mcpIndex.selectAll",
+        "title": "Select All",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "mcpIndex.deselectAll",
+        "title": "Deselect All",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "mcpIndex.toggleFileSelection",
+        "title": "Toggle Selection",
+        "icon": "$(check)"
+      },
+      {
+        "command": "mcpIndex.indexSelectedFiles",
+        "title": "🚀 Index Selected Files",
+        "icon": "$(play)"
+      },
+      {
+        "command": "mcpIndex.selectFolder",
+        "title": "Select All Files in Folder",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "mcpIndex.deselectFolder",
+        "title": "Deselect All Files in Folder",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "mcpIndex.toggleFolderSelection",
+        "title": "Toggle Folder Selection",
+        "icon": "$(check)"
+      },
+      {
+        "command": "mcpIndex.openFile",
+        "title": "Open File",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "mcpIndex.stopIndexing",
+        "title": "Stop Indexing",
+        "icon": "$(stop)"
+      },
+      {
+        "command": "mcpIndex.openStatusDashboard",
+        "title": "Open Status Dashboard",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "mcpIndex.showBothViews",
+        "title": "String: Show Both Views",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "mcpIndex.manageVectorStores",
+        "title": "String: Manage Vector Stores",
+        "icon": "$(link)"
+      },
+      {
+        "command": "mcpIndex.selectVectorStore",
+        "title": "String: Select Vector Store",
+        "icon": "$(target)"
+      },
+      {
+        "command": "mcpIndex.supportCommunity",
+        "title": "String: Support Community ☕",
+        "icon": "$(heart)"
+      },
+      {
+        "command": "mcpIndex.showSelectionSummary",
+        "title": "📊 Selection Summary",
+        "icon": "$(list-selection)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "mcpIndex.refreshTree",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mcpIndex.showSelectionSummary",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "mcpIndex.indexSelectedFiles",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@3"
+        },
+        {
+          "command": "mcpIndex.selectAll",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "1_selection@1"
+        },
+        {
+          "command": "mcpIndex.deselectAll",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "1_selection@2"
+        },
+        {
+          "command": "mcpIndex.stopIndexing",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@4"
+        },
+        {
+          "command": "mcpIndex.openStatusDashboard",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@5"
+        },
+        {
+          "command": "mcpIndex.showBothViews",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@6"
+        },
+        {
+          "command": "mcpIndex.supportCommunity",
+          "when": "view == mcpCodebaseIndexer",
+          "group": "navigation@7"
+        },
+        {
+          "command": "mcpIndex.manageVectorStores",
+          "when": "view == mcpCodebaseIndexer && config.string-codebase-indexer.enableMultiVectorStore",
+          "group": "vectorstore@1"
+        },
+        {
+          "command": "mcpIndex.selectVectorStore",
+          "when": "view == mcpCodebaseIndexer && config.string-codebase-indexer.enableMultiVectorStore",
+          "group": "vectorstore@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mcpIndex.openFile",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFile",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mcpIndex.toggleFileSelection",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFile",
+          "group": "selection@1"
+        },
+        {
+          "command": "mcpIndex.toggleFolderSelection",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFolder",
+          "group": "selection@1"
+        },
+        {
+          "command": "mcpIndex.selectFolder",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFolder",
+          "group": "folder@1"
+        },
+        {
+          "command": "mcpIndex.deselectFolder",
+          "when": "view == mcpCodebaseIndexer && viewItem == mcpFolder",
+          "group": "folder@2"
+        }
+      ]
+    },
+    "configuration": {
+      "type": "object",
+      "properties": {
+        "string-codebase-indexer.url": {
+          "type": "string",
+          "default": "https://mcp.rabtune.com",
+          "description": "Base URL of your String server (used as fallback when multi-vector store is disabled)"
+        },
+        "string-codebase-indexer.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Bearer token if your String server requires auth (used as fallback when multi-vector store is disabled)"
+        },
+        "string-codebase-indexer.maxChunkSize": {
+          "type": "number",
+          "default": 1000,
+          "description": "Max characters per chunk"
+        },
+        "string-codebase-indexer.autoIndexOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically show file selection dialog on workspace startup"
+        },
+        "string-codebase-indexer.excludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules",
+            "venv",
+            ".venv",
+            "target",
+            "build",
+            "dist",
+            "__pycache__",
+            ".git"
+          ],
+          "description": "Patterns to exclude when scanning for files"
+        },
+        "string-codebase-indexer.batchSize": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Number of files to process concurrently (1-10, lower is safer for server)"
+        },
+        "string-codebase-indexer.webhookPort": {
+          "type": "number",
+          "default": 3000,
+          "description": "Port for webhook server to receive job completion notifications"
+        },
+        "string-codebase-indexer.enableWebhooks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time webhook notifications for job completion"
+        },
+        "string-codebase-indexer.showBothViewsOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically show both file tree and dashboard views when extension activates"
+        },
+        "string-codebase-indexer.enableMultiVectorStore": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable multi-vector store support with secure credential management"
+        },
+        "string-codebase-indexer.credentialEndpoint": {
+          "type": "string",
+          "default": "https://secure.rabtune.com/credentials",
+          "description": "Secure web endpoint for requesting vector store credentials"
+        },
+        "string-codebase-indexer.secureServerEndpoint": {
+          "type": "string",
+          "default": "https://vault.rabtune.com",
+          "description": "Secure server endpoint for credential decryption and management"
+        },
+        "string-codebase-indexer.defaultVectorStore": {
+          "type": "string",
+          "default": "",
+          "description": "Default vector store ID to use when multiple stores are available"
+        },
+        "string-codebase-indexer.credentialExpiryDays": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Number of days before vector store credentials expire and need renewal"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --fix",
+    "lint:check": "eslint src",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "mocha --config .mocharc.unit.json",
+    "test:integration": "vscode-test",
+    "test:coverage": "nyc npm run test:unit",
+    "test:watch": "npm run test:unit -- --watch"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "@types/express": "^4.17.22",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/sinon": "^17.0.4",
+    "@types/vscode": "^1.100.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.28.0",
+    "globals": "^15.15.0",
+    "mocha": "^10.7.3",
+    "nyc": "^17.1.0",
+    "sinon": "^20.0.0",
+    "source-map-support": "^0.5.21",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2"
+  },
+  "nyc": {
+    "include": [
+      "out/**/*.js"
+    ],
+    "exclude": [
+      "out/test/**",
+      "node_modules/**"
+    ],
+    "extension": [
+      ".js"
+    ],
+    "reporter": [
+      "text",
+      "html",
+      "lcov"
+    ],
+    "report-dir": "coverage",
+    "temp-dir": ".nyc_output",
+    "check-coverage": true,
+    "lines": 80,
+    "statements": 80,
+    "functions": 80,
+    "branches": 70
+  }
+}

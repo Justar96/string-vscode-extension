@@ -1,6 +1,6 @@
-import * as vscode from "vscode";
-import { VectorStoreManager } from "./vectorStoreManager";
-import { VectorStoreCredentials } from "./types";
+import * as vscode from 'vscode';
+import { VectorStoreCredentials } from './types';
+import { VectorStoreManager } from './vectorStoreManager';
 
 // ─── Vector Store Management Webview ───────────────────────────────────
 export class VectorStoreWebviewProvider implements vscode.WebviewViewProvider {
@@ -14,8 +14,8 @@ export class VectorStoreWebviewProvider implements vscode.WebviewViewProvider {
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
-    context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
+    _context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken
   ) {
     this._view = webviewView;
 
@@ -28,24 +28,24 @@ export class VectorStoreWebviewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async data => {
       switch (data.type) {
-        case 'refresh':
-          this.updateContent();
-          break;
-        case 'addVectorStore':
-          await this.handleAddVectorStore(data.storeData);
-          break;
-        case 'removeVectorStore':
-          await this.handleRemoveVectorStore(data.storeId);
-          break;
-        case 'testConnection':
-          await this.handleTestConnection(data.storeId);
-          break;
-        case 'setActiveStore':
-          await this.handleSetActiveStore(data.storeId);
-          break;
-        case 'requestWebCredentials':
-          await this.handleRequestWebCredentials(data.storeType, data.userInfo);
-          break;
+      case 'refresh':
+        this.updateContent();
+        break;
+      case 'addVectorStore':
+        await this.handleAddVectorStore(data.storeData);
+        break;
+      case 'removeVectorStore':
+        await this.handleRemoveVectorStore(data.storeId);
+        break;
+      case 'testConnection':
+        await this.handleTestConnection(data.storeId);
+        break;
+      case 'setActiveStore':
+        await this.handleSetActiveStore(data.storeId);
+        break;
+      case 'requestWebCredentials':
+        await this.handleRequestWebCredentials(data.storeType, data.userInfo);
+        break;
       }
     });
   }
@@ -67,51 +67,186 @@ export class VectorStoreWebviewProvider implements vscode.WebviewViewProvider {
 
       const success = await this.vectorStoreManager.registerVectorStore(credentials);
       if (success) {
-        this.updateContent();
+        this.updateContent().catch(error => {
+          console.error('Failed to update vector store webview content:', error);
+          vscode.window.showErrorMessage('Failed to refresh vector store view');
+        });
       }
     } catch (error) {
-      vscode.window.showErrorMessage(`Failed to add vector store: ${error instanceof Error ? error.message : String(error)}`);
+      vscode.window.showErrorMessage(
+        `Failed to add vector store: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
   private async handleRemoveVectorStore(storeId: string): Promise<void> {
     const success = await this.vectorStoreManager.removeVectorStore(storeId);
     if (success) {
-      this.updateContent();
+      this.updateContent().catch(error => {
+        console.error('Failed to update vector store webview content after removal:', error);
+        vscode.window.showErrorMessage('Failed to refresh vector store view');
+      });
     }
   }
 
   private async handleTestConnection(storeId: string): Promise<void> {
     await this.vectorStoreManager.testConnection(storeId);
-    this.updateContent();
+    this.updateContent().catch(error => {
+      console.error('Failed to update vector store webview content after test:', error);
+      vscode.window.showErrorMessage('Failed to refresh vector store view');
+    });
   }
 
   private async handleSetActiveStore(storeId: string): Promise<void> {
     this.vectorStoreManager.setActiveStore(storeId);
-    this.updateContent();
+    this.updateContent().catch(error => {
+      console.error(
+        'Failed to update vector store webview content after setting active store:',
+        error
+      );
+      vscode.window.showErrorMessage('Failed to refresh vector store view');
+    });
   }
 
   private async handleRequestWebCredentials(storeType: string, userInfo: any): Promise<void> {
     try {
       const result = await this.vectorStoreManager.requestCredentialsFromWeb(storeType, userInfo);
       if (result.success) {
-        vscode.window.showInformationMessage("✅ Credentials received and stored securely");
-        this.updateContent();
+        vscode.window.showInformationMessage('✅ Credentials received and stored securely');
+        this.updateContent().catch(error => {
+          console.error(
+            'Failed to update vector store webview content after credential request:',
+            error
+          );
+          vscode.window.showErrorMessage('Failed to refresh vector store view');
+        });
       } else {
         vscode.window.showErrorMessage(`❌ Failed to get credentials: ${result.error}`);
       }
     } catch (error) {
-      vscode.window.showErrorMessage(`❌ Credential request failed: ${error instanceof Error ? error.message : String(error)}`);
+      vscode.window.showErrorMessage(
+        `❌ Credential request failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
-  public updateContent(): void {
+  public async updateContent(): Promise<void> {
     if (this._view) {
-      this._view.webview.html = this.generateWebviewHTML();
+      this._view.webview.html = await this.generateWebviewHTML();
     }
   }
 
-  private generateWebviewHTML(): string {
+  private async generateStoreListHTML(): Promise<string> {
+    const connections = await this.vectorStoreManager.getAllConnections();
+    const activeStoreId = this.vectorStoreManager.getActiveStore();
+
+    if (connections.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">🔗</div>
+          <div class="empty-title">No Vector Stores</div>
+          <div class="empty-description">
+            Connect to vector databases like Pinecone, Weaviate, Chroma, or Qdrant to start indexing your codebase.
+          </div>
+          <button class="action-btn" onclick="toggleAddForm()">
+            ➕ Add Your First Store
+          </button>
+        </div>
+      `;
+    }
+
+    return connections
+      .map(store => {
+        const isActive = store.id === activeStoreId;
+        const collections = store.collections || [];
+
+        return `
+        <div class="store-card ${isActive ? 'active' : ''}">
+          <div class="store-header">
+            <div class="store-info">
+              <div class="store-name">${store.credentials.name}</div>
+              <div class="store-provider">${store.credentials.provider.toUpperCase()}</div>
+            </div>
+            <div class="connection-status">
+              <div class="status-dot ${store.isConnected ? 'connected' : 'disconnected'}"></div>
+              <span>${store.isConnected ? 'Connected' : 'Disconnected'}</span>
+            </div>
+          </div>
+          
+          <div class="store-details">
+            <div class="detail-row">
+              <span class="detail-label">Endpoint:</span>
+              <span class="detail-value" title="${store.credentials.endpoint}">
+                ${
+  store.credentials.endpoint.length > 30
+    ? `${store.credentials.endpoint.substring(0, 30)}...`
+    : store.credentials.endpoint
+}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Created:</span>
+              <span class="detail-value">
+                ${
+  store.credentials.metadata?.createdAt
+    ? new Date(store.credentials.metadata.createdAt).toLocaleDateString()
+    : 'Unknown'
+}
+              </span>
+            </div>
+          </div>
+          
+          ${
+  collections.length > 0
+    ? `
+            <div class="collections-preview">
+              <div class="collections-title">Collections (${collections.length})</div>
+              <div class="collections-tags">
+                ${collections
+    .slice(0, 3)
+    .map(
+      collection => `
+                  <span class="collection-tag">${collection}</span>
+                `
+    )
+    .join('')}
+                ${
+  collections.length > 3
+    ? `
+                  <span class="collection-tag">+${collections.length - 3} more</span>
+                `
+    : ''
+}
+              </div>
+            </div>
+          `
+    : ''
+}
+          
+          <div class="store-actions">
+            ${
+  isActive && store.isConnected
+    ? `<button class="store-btn success" disabled>✓ Active</button>`
+    : `<button class="store-btn primary tooltip" data-tooltip="Set as default store" onclick="setActiveStore('${store.id}')">Activate</button>`
+}
+            <button class="store-btn secondary tooltip" data-tooltip="Test connection" onclick="testConnection('${
+  store.id
+}')">Test</button>
+            <button class="store-btn danger tooltip" data-tooltip="Remove store" onclick="removeStore('${
+  store.id
+}')">Delete</button>
+          </div>
+        </div>
+      `;
+      })
+      .join('');
+  }
+
+  private async generateWebviewHTML(): Promise<string> {
+    const storeListHTML = await this.generateStoreListHTML();
+    const connections = await this.vectorStoreManager.getAllConnections();
+    const connectedCount = connections.filter(c => c.isConnected).length;
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -119,143 +254,376 @@ export class VectorStoreWebviewProvider implements vscode.WebviewViewProvider {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vector Store Manager</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: var(--vscode-font-family);
             font-size: var(--vscode-font-size);
-            padding: 16px;
+            padding: 12px;
             background: var(--vscode-sideBar-background);
             color: var(--vscode-sideBar-foreground);
             margin: 0;
+            line-height: 1.4;
         }
         
-        .header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 16px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
-        }
-        
-        .header h3 {
-            margin: 0;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--vscode-sideBarSectionHeader-foreground);
-        }
-        
-        .store-list {
-            margin-bottom: 16px;
-        }
-        
-        .store-item {
+        .dashboard-header {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
             padding: 12px;
-            margin-bottom: 8px;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 6px;
-            background: var(--vscode-editor-background);
+            margin-bottom: 12px;
         }
         
-        .store-item.active {
-            border-color: var(--vscode-focusBorder);
-            background: var(--vscode-list-hoverBackground);
-        }
-        
-        .store-header {
+        .header-content {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 8px;
         }
         
-        .store-name {
-            font-weight: 600;
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .header-title h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 500;
             color: var(--vscode-foreground);
         }
         
-        .store-provider {
-            font-size: 12px;
+        .header-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 11px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--vscode-foreground);
+        }
+        
+        .stat-label {
             color: var(--vscode-descriptionForeground);
+            font-size: 9px;
             text-transform: uppercase;
         }
         
-        .store-status {
+        .quick-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        
+        .action-btn {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: 1px solid var(--vscode-input-border);
+            padding: 6px 10px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+            cursor: pointer;
             display: flex;
             align-items: center;
             gap: 4px;
-            font-size: 12px;
         }
         
-        .status-indicator {
+        .action-btn.secondary {
+            background: var(--vscode-input-background);
+            color: var(--vscode-foreground);
+        }
+        
+        .section {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+        
+        .section-header {
+            padding: 10px 12px;
+            background: var(--vscode-input-background);
+            border-bottom: 1px solid var(--vscode-input-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .section-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--vscode-foreground);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .section-content {
+            padding: 12px;
+        }
+        
+        .store-grid {
+            display: grid;
+            gap: 8px;
+        }
+        
+        .store-card {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
+            padding: 12px;
+        }
+        
+        .store-card.active {
+            border-color: var(--vscode-charts-green);
+        }
+        
+        .store-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        
+        .store-info {
+            flex: 1;
+        }
+        
+        .store-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--vscode-foreground);
+            margin-bottom: 3px;
+        }
+        
+        .store-provider {
+            font-size: 10px;
+            color: var(--vscode-descriptionForeground);
+            text-transform: uppercase;
+            font-weight: 500;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            padding: 2px 4px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+        
+        .status-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
         }
         
-        .status-connected { background: #28a745; }
-        .status-disconnected { background: #dc3545; }
-        .status-testing { background: #ffc107; }
+        .status-dot.connected {
+            background: #28a745;
+        }
+        
+        .status-dot.disconnected {
+            background: #dc3545;
+        }
+        
+        .status-dot.testing {
+            background: #ffc107;
+        }
+        
+        .store-details {
+            margin-bottom: 8px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 10px;
+        }
+        
+        .detail-label {
+            color: var(--vscode-descriptionForeground);
+            font-weight: 500;
+        }
+        
+        .detail-value {
+            color: var(--vscode-foreground);
+            font-weight: 500;
+            max-width: 60%;
+            text-align: right;
+            word-break: break-all;
+        }
+        
+        .collections-preview {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
+            padding: 6px;
+            margin-bottom: 8px;
+        }
+        
+        .collections-title {
+            font-size: 9px;
+            color: var(--vscode-descriptionForeground);
+            text-transform: uppercase;
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+        
+        .collections-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+        }
+        
+        .collection-tag {
+            background: var(--vscode-input-background);
+            color: var(--vscode-foreground);
+            border: 1px solid var(--vscode-input-border);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 8px;
+            font-weight: 400;
+        }
         
         .store-actions {
             display: flex;
-            gap: 8px;
-            margin-top: 8px;
+            gap: 4px;
+            flex-wrap: wrap;
         }
         
-        .btn {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
+        .store-btn {
+            padding: 4px 8px;
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 3px;
             cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s ease;
+            font-size: 9px;
+            font-weight: 500;
+            flex: 1;
+            min-width: 50px;
+            text-align: center;
         }
         
-        .btn-primary {
+        .store-btn.primary {
             background: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
         }
         
-        .btn-primary:hover {
-            background: var(--vscode-button-hoverBackground);
+        .store-btn.secondary {
+            background: var(--vscode-input-background);
+            color: var(--vscode-foreground);
         }
         
-        .btn-secondary {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
+        .store-btn.danger {
+            background: var(--vscode-input-background);
+            color: var(--vscode-testing-iconFailed);
         }
         
-        .btn-danger {
-            background: var(--vscode-errorForeground);
-            color: var(--vscode-errorBackground);
+        .store-btn.success {
+            background: var(--vscode-input-background);
+            color: var(--vscode-charts-green);
+            cursor: default;
         }
         
-        .add-store-section {
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 6px;
-            padding: 16px;
+        .empty-state {
+            text-align: center;
+            padding: 24px 16px;
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        .empty-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+        
+        .empty-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--vscode-foreground);
+        }
+        
+        .empty-description {
+            font-size: 11px;
+            line-height: 1.4;
             margin-bottom: 16px;
+        }
+        
+        .form-section {
+            margin-bottom: 12px;
+        }
+        
+        .form-header {
+            padding: 10px 12px;
+            background: var(--vscode-input-background);
+            border-radius: 3px 3px 0 0;
+            border-bottom: 1px solid var(--vscode-input-border);
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .form-header h4 {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--vscode-foreground);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .form-content {
+            padding: 12px;
+            background: var(--vscode-input-background);
+            border-radius: 0 0 3px 3px;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
         }
         
         .form-group {
             margin-bottom: 12px;
         }
         
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+        
         .form-group label {
             display: block;
             margin-bottom: 4px;
-            font-weight: 600;
+            font-weight: 500;
             color: var(--vscode-foreground);
+            font-size: 11px;
         }
         
         .form-group input, .form-group select, .form-group textarea {
             width: 100%;
-            padding: 8px;
+            padding: 8px 10px;
             border: 1px solid var(--vscode-input-border);
-            border-radius: 4px;
+            border-radius: 3px;
             background: var(--vscode-input-background);
             color: var(--vscode-input-foreground);
-            font-size: 13px;
+            font-size: 12px;
         }
         
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
@@ -263,101 +631,141 @@ export class VectorStoreWebviewProvider implements vscode.WebviewViewProvider {
             border-color: var(--vscode-focusBorder);
         }
         
-        .web-credentials-section {
-            background: var(--vscode-textBlockQuote-background);
-            border-left: 4px solid var(--vscode-focusBorder);
-            padding: 12px;
-            margin-bottom: 16px;
-            border-radius: 4px;
-        }
-        
-        .web-credentials-section h4 {
-            margin: 0 0 8px 0;
-            color: var(--vscode-foreground);
-        }
-        
-        .web-credentials-section p {
-            margin: 0 0 8px 0;
-            color: var(--vscode-descriptionForeground);
-            font-size: 13px;
+        .form-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: flex-end;
+            margin-top: 12px;
         }
         
         .hidden {
             display: none;
         }
-        
-        .collapsible {
-            cursor: pointer;
-            user-select: none;
-        }
-        
-        .collapsible:hover {
-            background: var(--vscode-list-hoverBackground);
-        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h3>🔗 Vector Stores</h3>
-        <button class="btn btn-primary" onclick="toggleAddForm()">+ Add Store</button>
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="header-content">
+            <div class="header-title">
+                <h3>🔗 Vector Stores</h3>
+            </div>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <span class="stat-value">${connections.length}</span>
+                    <span class="stat-label">Total</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">${connectedCount}</span>
+                    <span class="stat-label">Connected</span>
+                </div>
+            </div>
+        </div>
+        <div class="quick-actions">
+            <button class="action-btn" onclick="toggleWebCredentials()">
+                🌐 Get Credentials
+            </button>
+            <button class="action-btn secondary" onclick="toggleAddForm()">
+                ➕ Add Store
+            </button>
+        </div>
+    </div>
+
+    <!-- Web Credentials Section -->
+    <div id="webCredentialsSection" class="section hidden">
+        <div class="section-header">
+            <div class="section-title">🔐 Secure Credential Management</div>
+        </div>
+        <div class="section-content">
+            <p style="margin-bottom: 16px; color: var(--vscode-descriptionForeground); font-size: 13px; line-height: 1.5;">
+                Request credentials from your secure web endpoint for quick setup.
+            </p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="storeTypeSelect">Store Type:</label>
+                    <select id="storeTypeSelect">
+                        <option value="pinecone">Pinecone</option>
+                        <option value="weaviate">Weaviate</option>
+                        <option value="chroma">Chroma</option>
+                        <option value="qdrant">Qdrant</option>
+                        <option value="string">String</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="userInfo">User Info (optional):</label>
+                    <input type="text" id="userInfo" placeholder="Username or email">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="action-btn" onclick="requestWebCredentials()">
+                    🌐 Request Credentials
+                </button>
+            </div>
+        </div>
     </div>
     
-    <div class="web-credentials-section">
-        <h4>🔐 Secure Credential Management</h4>
-        <p>Request credentials from your secure web endpoint or add them manually below.</p>
-        <div class="form-group">
-            <label for="storeTypeSelect">Store Type:</label>
-            <select id="storeTypeSelect">
-                <option value="pinecone">Pinecone</option>
-                <option value="weaviate">Weaviate</option>
-                <option value="chroma">Chroma</option>
-                <option value="qdrant">Qdrant</option>
-                <option value="string">String</option>
-                <option value="custom">Custom</option>
-            </select>
+    <!-- Manual Add Form -->
+    <div id="addStoreForm" class="section hidden">
+        <div class="section-header">
+            <div class="section-title">➕ Add Vector Store Manually</div>
         </div>
-        <div class="form-group">
-            <label for="userInfo">User Info (optional):</label>
-            <input type="text" id="userInfo" placeholder="Username or email">
+        <div class="section-content">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="storeName">Store Name:</label>
+                    <input type="text" id="storeName" placeholder="My Vector Store">
+                </div>
+                <div class="form-group">
+                    <label for="provider">Provider:</label>
+                    <select id="provider">
+                        <option value="string">String</option>
+                        <option value="pinecone">Pinecone</option>
+                        <option value="weaviate">Weaviate</option>
+                        <option value="chroma">Chroma</option>
+                        <option value="qdrant">Qdrant</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div class="form-group full-width">
+                    <label for="endpoint">Endpoint URL:</label>
+                    <input type="text" id="endpoint" placeholder="https://your-vector-store.com/api">
+                </div>
+                <div class="form-group full-width">
+                    <label for="apiKey">API Key:</label>
+                    <input type="password" id="apiKey" placeholder="Your API key">
+                </div>
+                <div class="form-group full-width">
+                    <label for="capabilities">Capabilities (comma-separated):</label>
+                    <input type="text" id="capabilities" placeholder="search,insert,delete,update">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="action-btn" onclick="addVectorStore()">
+                    ✅ Add Store
+                </button>
+                <button class="action-btn secondary" onclick="toggleAddForm()">
+                    ❌ Cancel
+                </button>
+            </div>
         </div>
-        <button class="btn btn-primary" onclick="requestWebCredentials()">🌐 Request from Web</button>
     </div>
     
-    <div id="addStoreForm" class="add-store-section hidden">
-        <h4>Add Vector Store Manually</h4>
-        <div class="form-group">
-            <label for="storeName">Store Name:</label>
-            <input type="text" id="storeName" placeholder="My Vector Store">
+    <!-- Store List -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">📊 Your Vector Stores</div>
+            ${
+  connections.length > 0
+    ? `<button class="action-btn secondary" onclick="refreshStores()">🔄 Refresh</button>`
+    : ''
+}
         </div>
-        <div class="form-group">
-            <label for="provider">Provider:</label>
-            <select id="provider">
-                <option value="string">String</option>
-                <option value="pinecone">Pinecone</option>
-                <option value="weaviate">Weaviate</option>
-                <option value="chroma">Chroma</option>
-                <option value="qdrant">Qdrant</option>
-                <option value="custom">Custom</option>
-            </select>
+        <div class="section-content">
+            <div class="store-grid" id="storeList">
+                ${storeListHTML}
+            </div>
         </div>
-        <div class="form-group">
-            <label for="endpoint">Endpoint URL:</label>
-            <input type="text" id="endpoint" placeholder="https://your-vector-store.com/api">
-        </div>
-        <div class="form-group">
-            <label for="apiKey">API Key:</label>
-            <input type="password" id="apiKey" placeholder="Your API key">
-        </div>
-        <div class="form-group">
-            <label for="capabilities">Capabilities (comma-separated):</label>
-            <input type="text" id="capabilities" placeholder="search,insert,delete,update">
-        </div>
-        <button class="btn btn-primary" onclick="addVectorStore()">Add Store</button>
-        <button class="btn btn-secondary" onclick="toggleAddForm()">Cancel</button>
-    </div>
-    
-    <div class="store-list" id="storeList">
-        <p>Loading vector stores...</p>
     </div>
     
     <script>
@@ -365,7 +773,26 @@ export class VectorStoreWebviewProvider implements vscode.WebviewViewProvider {
         
         function toggleAddForm() {
             const form = document.getElementById('addStoreForm');
+            const webCredentials = document.getElementById('webCredentialsSection');
+            
             form.classList.toggle('hidden');
+            if (!form.classList.contains('hidden')) {
+                webCredentials.classList.add('hidden');
+            }
+        }
+        
+        function toggleWebCredentials() {
+            const webCredentials = document.getElementById('webCredentialsSection');
+            const addForm = document.getElementById('addStoreForm');
+            
+            webCredentials.classList.toggle('hidden');
+            if (!webCredentials.classList.contains('hidden')) {
+                addForm.classList.add('hidden');
+            }
+        }
+        
+        function refreshStores() {
+            vscode.postMessage({ type: 'refresh' });
         }
         
         function addVectorStore() {
@@ -432,4 +859,4 @@ export class VectorStoreWebviewProvider implements vscode.WebviewViewProvider {
 </body>
 </html>`;
   }
-} 
+}

@@ -32,14 +32,14 @@ class MockTreeItem {
     public readonly collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.None
   ) {
     if (node.type === 'file' && node.fileItem) {
-      this.checkboxState = node.fileItem.selected 
-        ? vscode.TreeItemCheckboxState.Checked 
+      this.checkboxState = node.fileItem.selected
+        ? vscode.TreeItemCheckboxState.Checked
         : vscode.TreeItemCheckboxState.Unchecked;
-      this.contextValue = "mcpFile";
+      this.contextValue = 'mcpFile';
     } else if (node.type === 'folder') {
       const fileCount = this.countFilesInFolder(node);
       const selectedCount = this.countSelectedFilesInFolder(node);
-      
+
       if (selectedCount === 0) {
         this.checkboxState = vscode.TreeItemCheckboxState.Unchecked;
       } else if (selectedCount === fileCount) {
@@ -47,9 +47,9 @@ class MockTreeItem {
       } else {
         this.checkboxState = vscode.TreeItemCheckboxState.Checked;
       }
-      
+
       this.description = `${selectedCount}/${fileCount} files`;
-      this.contextValue = "mcpFolder";
+      this.contextValue = 'mcpFolder';
     }
   }
 
@@ -128,7 +128,7 @@ class MockTreeDataProvider {
     if (folderNode) {
       const totalFiles = this.countFilesInNode(folderNode);
       const selectedFiles = this.countSelectedFilesInNode(folderNode);
-      
+
       const shouldSelect = selectedFiles < totalFiles;
       this.toggleFolderFiles(folderNode, shouldSelect);
       this.buildFileTree();
@@ -201,7 +201,7 @@ class MockTreeDataProvider {
     }
 
     const folderMap = new Map<string, ExplorerNode>();
-    
+
     // Create a virtual root for all files
     const rootNode: ExplorerNode = {
       type: 'folder',
@@ -214,16 +214,16 @@ class MockTreeDataProvider {
 
     for (const fileItem of this.fileItems) {
       const relativePathParts = fileItem.relativePath.split(path.sep);
-      
+
       let currentParent = rootNode;
-      let currentPathSegments: string[] = [];
-      
+      const currentPathSegments: string[] = [];
+
       // Create intermediate folders
       for (let i = 0; i < relativePathParts.length - 1; i++) {
         const folderName = relativePathParts[i];
         currentPathSegments.push(folderName);
         const folderPathKey = currentPathSegments.join(path.sep);
-        
+
         if (!folderMap.has(folderPathKey)) {
           const folderNode: ExplorerNode = {
             type: 'folder',
@@ -233,14 +233,14 @@ class MockTreeDataProvider {
             children: [],
             parent: currentParent
           };
-          
+
           folderMap.set(folderPathKey, folderNode);
           currentParent.children!.push(folderNode);
         }
-        
+
         currentParent = folderMap.get(folderPathKey)!;
       }
-      
+
       // Add the file
       const fileName = relativePathParts[relativePathParts.length - 1];
       const fileNode: ExplorerNode = {
@@ -248,10 +248,10 @@ class MockTreeDataProvider {
         label: fileName,
         uri: fileItem.uri,
         relativePath: fileItem.relativePath,
-        fileItem: fileItem,
+        fileItem,
         parent: currentParent
       };
-      
+
       currentParent.children!.push(fileNode);
     }
 
@@ -267,7 +267,7 @@ class MockTreeDataProvider {
         }
         return a.label.localeCompare(b.label, undefined, { numeric: true });
       });
-      
+
       node.children.forEach(child => this.sortNodeChildren(child));
     }
   }
@@ -350,7 +350,7 @@ suite('Tree Data Provider Tests', () => {
       const rootNodes = provider.getRootNodes();
 
       assert.ok(rootNodes.length > 0, 'Should have root nodes');
-      
+
       // Should have src, tests folders and README.md file at root
       const srcNode = rootNodes.find(n => n.label === 'src');
       const testsNode = rootNodes.find(n => n.label === 'tests');
@@ -444,16 +444,16 @@ suite('Tree Data Provider Tests', () => {
       const provider = new MockTreeDataProvider(mockFiles);
 
       const initialSelected = provider.getSelectedFiles().length;
-      
+
       // Toggle a file that's currently selected
       provider.toggleFileSelection('src/index.js');
-      
+
       const afterToggle = provider.getSelectedFiles().length;
       assert.strictEqual(afterToggle, initialSelected - 1, 'Should decrease selection count');
 
       // Toggle it back
       provider.toggleFileSelection('src/index.js');
-      
+
       const afterToggleBack = provider.getSelectedFiles().length;
       assert.strictEqual(afterToggleBack, initialSelected, 'Should restore original selection count');
     });
@@ -463,10 +463,10 @@ suite('Tree Data Provider Tests', () => {
       const provider = new MockTreeDataProvider(mockFiles);
 
       provider.selectAll();
-      
+
       const selectedFiles = provider.getSelectedFiles();
       assert.strictEqual(selectedFiles.length, mockFiles.length, 'Should select all files');
-      
+
       // Verify all files are marked as selected
       const allFiles = provider.getFileItems();
       const allSelected = allFiles.every(f => f.selected);
@@ -478,10 +478,10 @@ suite('Tree Data Provider Tests', () => {
       const provider = new MockTreeDataProvider(mockFiles);
 
       provider.deselectAll();
-      
+
       const selectedFiles = provider.getSelectedFiles();
       assert.strictEqual(selectedFiles.length, 0, 'Should deselect all files');
-      
+
       // Verify no files are marked as selected
       const allFiles = provider.getFileItems();
       const noneSelected = allFiles.every(f => !f.selected);
@@ -502,7 +502,7 @@ suite('Tree Data Provider Tests', () => {
       provider.toggleFolderSelection('src');
 
       const afterToggle = provider.getSelectedFiles().filter(f => f.relativePath.startsWith('src/')).length;
-      
+
       // Should either select all or deselect all files in src folder
       assert.ok(
         afterToggle === 0 || afterToggle === srcFiles.length,
@@ -582,7 +582,7 @@ suite('Tree Data Provider Tests', () => {
     test('should handle file tree items correctly', () => {
       const mockFiles = createMockFileItems();
       const provider = new MockTreeDataProvider(mockFiles);
-      
+
       const readmeFile = mockFiles.find(f => f.relativePath === 'README.md')!;
       const fileNode: ExplorerNode = {
         type: 'file',
@@ -596,7 +596,7 @@ suite('Tree Data Provider Tests', () => {
 
       assert.strictEqual(treeItem.contextValue, 'mcpFile', 'File should have correct context value');
       assert.strictEqual(
-        treeItem.checkboxState, 
+        treeItem.checkboxState,
         readmeFile.selected ? vscode.TreeItemCheckboxState.Checked : vscode.TreeItemCheckboxState.Unchecked,
         'File checkbox state should match selection'
       );
@@ -670,10 +670,10 @@ suite('Tree Data Provider Tests', () => {
       const rootNodes = provider.getRootNodes();
 
       assert.ok(rootNodes.length > 0, 'Should handle special characters in file names');
-      
+
       const specialFile = provider.findNodeByPath('test-file_with-special@chars.js');
       const spacedFolder = provider.findNodeByPath('folder with spaces');
-      
+
       assert.ok(specialFile, 'Should find file with special characters');
       assert.ok(spacedFolder, 'Should find folder with spaces');
     });
@@ -725,4 +725,4 @@ suite('Tree Data Provider Tests', () => {
       assert.ok(componentsNode.children?.includes(headerFile), 'Components should contain header file in children');
     });
   });
-}); 
+});

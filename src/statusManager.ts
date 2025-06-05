@@ -1,5 +1,5 @@
-import * as vscode from "vscode";
-import { IndexingState, DashboardStats, JobMetrics } from "./types";
+import * as vscode from 'vscode';
+import { DashboardStats, IndexingState, JobMetrics } from './types';
 
 export class StatusManager {
   private statusBarItem: vscode.StatusBarItem;
@@ -16,7 +16,7 @@ export class StatusManager {
       totalFiles: 0,
       indexedFiles: 0
     };
-    
+
     this.dashboardStats = {
       totalFiles: 0,
       processedFiles: 0,
@@ -30,7 +30,7 @@ export class StatusManager {
       webhookStatus: 'disconnected',
       collections: []
     };
-    
+
     this.activeJobMetrics = new Map();
   }
 
@@ -63,6 +63,18 @@ export class StatusManager {
       isIndexing: false,
       lastIndexed: successful ? new Date() : this.indexingState.lastIndexed
     });
+  }
+
+  setIndexingState(isIndexing: boolean, totalFiles: number, indexedFiles: number = 0): void {
+    this.updateIndexingState({
+      isIndexing,
+      totalFiles,
+      indexedFiles
+    });
+  }
+
+  startJob(jobId: string, fileName: string): void {
+    this.addJobMetrics(jobId, fileName);
   }
 
   toggleAutoIndexing(): void {
@@ -112,7 +124,7 @@ export class StatusManager {
       status: 'processing',
       startTime: Date.now()
     };
-    
+
     this.activeJobMetrics.set(jobId, metrics);
     this.updateDashboardStats({ activeJobs: this.activeJobMetrics.size });
   }
@@ -128,33 +140,33 @@ export class StatusManager {
     const job = this.activeJobMetrics.get(jobId);
     if (job) {
       const processingTime = Date.now() - job.startTime;
-      
+
       this.updateJobMetrics(jobId, {
         status: success ? 'completed' : 'failed',
         chunksProcessed,
         tokensGenerated,
         processingTimeMs: processingTime
       });
-      
+
       // Update global stats
       this.dashboardStats.processedFiles++;
       this.dashboardStats.totalChunks += chunksProcessed;
       this.dashboardStats.totalTokens += tokensGenerated;
-      
+
       if (success) {
-        this.dashboardStats.averageProcessingTime = 
-          (this.dashboardStats.averageProcessingTime * (this.dashboardStats.processedFiles - 1) + processingTime / 1000) / 
+        this.dashboardStats.averageProcessingTime =
+          (this.dashboardStats.averageProcessingTime * (this.dashboardStats.processedFiles - 1) + processingTime / 1000) /
           this.dashboardStats.processedFiles;
       } else {
         this.dashboardStats.processingErrors++;
       }
-      
+
       // Remove completed job after 2 seconds (faster cleanup)
       setTimeout(() => {
         this.activeJobMetrics.delete(jobId);
         this.updateDashboardStats({ activeJobs: this.activeJobMetrics.size });
       }, 2000);
-      
+
       this.updateDashboardStats({});
     }
   }
@@ -165,27 +177,27 @@ export class StatusManager {
 
   // ─── Status Bar Management ─────────────────────────────────────────────
   private updateStatusBar(): void {
-    const autoIcon = this.indexingState.autoIndexEnabled ? "$(sync)" : "$(sync-ignored)";
-    
+    const autoIcon = this.indexingState.autoIndexEnabled ? '$(sync)' : '$(sync-ignored)';
+
     let text: string;
     let tooltip: string;
     let commandId: string | undefined;
 
     if (this.indexingState.isIndexing) {
       text = `$(loading~spin) String Indexing (${this.indexingState.indexedFiles}/${this.indexingState.totalFiles}) $(stop)`;
-      tooltip = "String is currently indexing files. Click to stop indexing.";
-      commandId = "mcpIndex.stopIndexing";
+      tooltip = 'String is currently indexing files. Click to stop indexing.';
+      commandId = 'mcpIndex.stopIndexing';
     } else {
-      const indexingIcon = "$(database)";
+      const indexingIcon = '$(database)';
       text = `${autoIcon} ${indexingIcon} String`;
-      
+
       if (this.indexingState.lastIndexed) {
         const timeAgo = Math.round((Date.now() - this.indexingState.lastIndexed.getTime()) / 60000);
         text += ` (${timeAgo}m ago)`;
       }
-      
-      tooltip = `${this.indexingState.autoIndexEnabled ? "String Auto-indexing enabled" : "String Auto-indexing disabled"}. Click for options.`;
-      commandId = "mcpIndex.showMenu";
+
+      tooltip = `${this.indexingState.autoIndexEnabled ? 'String Auto-indexing enabled' : 'String Auto-indexing disabled'}. Click for options.`;
+      commandId = 'mcpIndex.showMenu';
     }
 
     this.statusBarItem.text = text;
@@ -199,8 +211,8 @@ export class StatusManager {
       `Auto-indexing on file changes: ${this.indexingState.autoIndexEnabled ? 'Enabled' : 'Disabled'}`,
       `Currently indexing: ${this.indexingState.isIndexing ? 'Yes' : 'No'}`,
       `Last indexed: ${this.indexingState.lastIndexed ? this.indexingState.lastIndexed.toLocaleString() : 'Never'}`,
-      this.indexingState.isIndexing || this.indexingState.totalFiles > 0 ? 
-        `Files processed in last/current run: ${this.indexingState.indexedFiles}/${this.indexingState.totalFiles}` : 
+      this.indexingState.isIndexing || this.indexingState.totalFiles > 0 ?
+        `Files processed in last/current run: ${this.indexingState.indexedFiles}/${this.indexingState.totalFiles}` :
         `No active or recent indexing run.`
     ].join('\n');
 
@@ -233,4 +245,4 @@ export class StatusManager {
     this.statusBarItem.dispose();
     this.cleanup();
   }
-} 
+}

@@ -1,0 +1,15 @@
+{
+  "ui": "tdd",
+  "timeout": 5000,
+  "color": true,
+  "reporter": "spec",
+  "recursive": true,
+  "bail": false,
+  "exit": true,
+  "spec": "out/test/**/*.test.js",
+  "require": ["source-map-support/register", "out/test/test-setup.js"],
+  "grep": "",
+  "invert": false,
+  "checkLeaks": true,
+  "full-trace": true
+}

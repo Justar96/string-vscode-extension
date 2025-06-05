@@ -1,11 +1,11 @@
-import * as vscode from "vscode";
-import { 
-  VectorStoreCredentials, 
-  VectorStoreConnection, 
+import * as vscode from 'vscode';
+import {
   SecureCredentialResponse,
-  VectorStoreSelectionContext 
-} from "./types";
-import { getExtensionConfig } from "./utils";
+  VectorStoreConnection,
+  VectorStoreCredentials,
+  VectorStoreSelectionContext
+} from './types';
+import { getExtensionConfig } from './utils';
 
 // ─── Vector Store Manager ──────────────────────────────────────────────
 export class VectorStoreManager {
@@ -23,7 +23,7 @@ export class VectorStoreManager {
     try {
       // Store credentials securely
       await this.secureStorage.store(
-        `vectorstore_${credentials.id}`, 
+        `vectorstore_${credentials.id}`,
         JSON.stringify(credentials)
       );
 
@@ -36,17 +36,17 @@ export class VectorStoreManager {
       };
 
       this.connections.set(credentials.id, connection);
-      
+
       // Test connection
       await this.testConnection(credentials.id);
-      
+
       vscode.window.showInformationMessage(
         `✅ Vector store "${credentials.name}" registered successfully`
       );
-      
+
       return true;
     } catch (error) {
-      console.error("Failed to register vector store:", error);
+      console.error('Failed to register vector store:', error);
       vscode.window.showErrorMessage(
         `❌ Failed to register vector store: ${error instanceof Error ? error.message : String(error)}`
       );
@@ -56,12 +56,12 @@ export class VectorStoreManager {
 
   async requestCredentialsFromWeb(storeType: string, userInfo: any): Promise<SecureCredentialResponse> {
     const config = getExtensionConfig();
-    
+
     try {
       const response = await fetch(config.credentialEndpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           storeType,
@@ -76,14 +76,14 @@ export class VectorStoreManager {
       }
 
       const result = await response.json() as SecureCredentialResponse;
-      
+
       if (result.success) {
         // Decrypt and store the credentials
         const decryptedCredentials = await this.decryptCredentials(
-          result.encryptedToken, 
+          result.encryptedToken,
           result.credentialId
         );
-        
+
         if (decryptedCredentials) {
           await this.registerVectorStore(decryptedCredentials);
         }
@@ -91,7 +91,7 @@ export class VectorStoreManager {
 
       return result;
     } catch (error) {
-      console.error("Failed to request credentials:", error);
+      console.error('Failed to request credentials:', error);
       return {
         success: false,
         credentialId: '',
@@ -103,12 +103,12 @@ export class VectorStoreManager {
 
   private async decryptCredentials(encryptedToken: string, credentialId: string): Promise<VectorStoreCredentials | null> {
     const config = getExtensionConfig();
-    
+
     try {
       const response = await fetch(`${config.secureServerEndpoint}/decrypt`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           encryptedToken,
@@ -122,7 +122,7 @@ export class VectorStoreManager {
 
       return await response.json() as VectorStoreCredentials;
     } catch (error) {
-      console.error("Failed to decrypt credentials:", error);
+      console.error('Failed to decrypt credentials:', error);
       return null;
     }
   }
@@ -136,11 +136,11 @@ export class VectorStoreManager {
 
     try {
       const testResult = await this.performHealthCheck(connection.credentials);
-      
+
       connection.isConnected = testResult.success;
       connection.lastHealthCheck = new Date();
       connection.connectionError = testResult.error;
-      
+
       if (testResult.success) {
         connection.collections = testResult.collections || [];
       }
@@ -160,7 +160,7 @@ export class VectorStoreManager {
   }> {
     try {
       const headers: any = {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       };
 
       // Add provider-specific auth headers
@@ -228,7 +228,7 @@ export class VectorStoreManager {
   }
 
   private autoSelectBestStore(
-    availableStores: VectorStoreConnection[], 
+    availableStores: VectorStoreConnection[],
     context: VectorStoreSelectionContext
   ): string {
     // Simple scoring algorithm - can be enhanced
@@ -237,22 +237,22 @@ export class VectorStoreManager {
 
     for (const store of availableStores) {
       let score = 0;
-      
+
       // Prefer stores with target collection
-      if (context.targetCollection && 
+      if (context.targetCollection &&
           store.collections.includes(context.targetCollection)) {
         score += 10;
       }
-      
+
       // Prefer recently used stores
       if (store.credentials.metadata.lastUsed) {
         const daysSinceUsed = (Date.now() - store.credentials.metadata.lastUsed.getTime()) / (1000 * 60 * 60 * 24);
         score += Math.max(0, 5 - daysSinceUsed);
       }
-      
+
       // Prefer stores with more capabilities
       score += store.credentials.metadata.capabilities.length;
-      
+
       if (score > bestScore) {
         bestScore = score;
         bestStore = store;
@@ -265,11 +265,11 @@ export class VectorStoreManager {
   // ─── Store Operations ──────────────────────────────────────────────────
   async getConnectionStatus(): Promise<Map<string, boolean>> {
     const status = new Map<string, boolean>();
-    
+
     for (const [id, connection] of this.connections) {
       status.set(id, connection.isConnected);
     }
-    
+
     return status;
   }
 
@@ -285,18 +285,18 @@ export class VectorStoreManager {
     try {
       // Remove from secure storage
       await this.secureStorage.delete(`vectorstore_${storeId}`);
-      
+
       // Remove from memory
       this.connections.delete(storeId);
-      
+
       // Update active store if needed
       if (this.activeStoreId === storeId) {
         this.activeStoreId = undefined;
       }
-      
+
       return true;
     } catch (error) {
-      console.error("Failed to remove vector store:", error);
+      console.error('Failed to remove vector store:', error);
       return false;
     }
   }
@@ -314,7 +314,7 @@ export class VectorStoreManager {
   setActiveStore(storeId: string): void {
     if (this.connections.has(storeId)) {
       this.activeStoreId = storeId;
-      
+
       // Update last used timestamp
       const connection = this.connections.get(storeId);
       if (connection) {
@@ -326,4 +326,4 @@ export class VectorStoreManager {
   getActiveStore(): string | undefined {
     return this.activeStoreId;
   }
-} 
+}

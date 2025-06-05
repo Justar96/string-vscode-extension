@@ -1,11 +1,11 @@
-import * as vscode from "vscode";
-import { promises as fs } from "fs";
-import * as path from "path";
-import { FileItem } from "./types";
-import { getLanguageFromPath, createFilePattern, createExcludeGlob, getExtensionConfig } from "./utils";
+import * as vscode from 'vscode';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { FileItem } from './types';
+import { createExcludeGlob, createFilePattern, formatFileSize, getExtensionConfig, getLanguageFromPath } from './utils';
 
 export class FileScanner {
-  
+
   /**
    * Scans the workspace for supported code files
    * @returns Array of FileItem objects
@@ -19,7 +19,7 @@ export class FileScanner {
     const config = getExtensionConfig();
     const excludeGlob = createExcludeGlob(config.excludePatterns);
     const pattern = createFilePattern(folder);
-    
+
     const uris = await vscode.workspace.findFiles(pattern, excludeGlob);
     const fileItems: FileItem[] = [];
 
@@ -62,7 +62,7 @@ export class FileScanner {
     const config = getExtensionConfig();
     const excludeGlob = createExcludeGlob(config.excludePatterns);
     const pattern = createFilePattern(folder);
-    
+
     const uris = await vscode.workspace.findFiles(pattern, excludeGlob);
     const newFileItems: FileItem[] = [];
 
@@ -101,13 +101,13 @@ export class FileScanner {
    */
   async showFileSelectionDialog(files: FileItem[]): Promise<FileItem[] | undefined> {
     if (!files || files.length === 0) {
-      vscode.window.showInformationMessage("No files available to select for indexing.");
+      vscode.window.showInformationMessage('No files available to select for indexing.');
       return undefined;
     }
-    
+
     const quickPickItems = files.map(file => ({
       label: `$(file-code) ${file.relativePath}`,
-      description: `${file.language}${file.size > 0 ? ` • ${this.formatFileSize(file.size)}` : ''}`,
+      description: `${file.language}${file.size > 0 ? ` • ${formatFileSize(file.size)}` : ''}`,
       detail: file.uri.fsPath,
       picked: file.selected,
       fileItem: file
@@ -117,22 +117,14 @@ export class FileScanner {
       placeHolder: `Select files to index (${files.length} files found). Uncheck to exclude.`,
       canPickMany: true,
       matchOnDescription: true,
-      matchOnDetail: true,
+      matchOnDetail: true
     });
 
     if (!selectedItems || selectedItems.length === 0) {
-      vscode.window.showInformationMessage("No files selected for indexing.");
+      vscode.window.showInformationMessage('No files selected for indexing.');
       return undefined;
     }
 
     return selectedItems.map(item => item.fileItem);
   }
-
-  private formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  }
-} 
+}

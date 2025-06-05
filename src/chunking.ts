@@ -1,8 +1,9 @@
-import { ChunkValidationResult, ChunkInfo } from "./types";
-import { getLanguageFromPath } from "./utils";
+import { ChunkInfo, ChunkValidationResult } from './types';
+import { getLanguageFromPath } from './utils';
+import * as crypto from 'crypto';
 
 export class ContentChunker {
-  
+
   /**
    * Validates a chunk of content
    */
@@ -12,7 +13,7 @@ export class ContentChunker {
     const SERVER_ABSOLUTE_MAX_CHUNK_SIZE = 100000; // Example: Absolute server limit
 
     if (!content || content.trim().length === 0) {
-      errors.push("Chunk content is empty");
+      errors.push('Chunk content is empty');
     }
 
     if (content.length > configuredMaxChunkSize) {
@@ -23,13 +24,13 @@ export class ContentChunker {
     }
 
     if (content.includes('\uFFFD')) {
-      warnings.push("Chunk contains replacement characters (likely encoding issues)");
+      warnings.push('Chunk contains replacement characters (likely encoding issues)');
     }
 
     const lines = content.split('\n');
     const nonEmptyLines = lines.filter(line => line.trim().length > 0);
     const hasCode = nonEmptyLines.some(line =>
-      /^[\s]*[a-zA-Z_$][\w$]*[\s]*[=:({]/.test(line) || 
+      /^[\s]*[a-zA-Z_$][\w$]*[\s]*[=:({]/.test(line) ||
       /^[\s]*(import|from|class|def|function|const|let|var)[\s]/.test(line)
     );
 
@@ -52,7 +53,6 @@ export class ContentChunker {
    * Generates a hash for a chunk
    */
   generateChunkHash(content: string, filePath: string, index: number): string {
-    const crypto = require('crypto');
     return crypto.createHash('md5')
       .update(`${filePath}:${index}:${content}`)
       .digest('hex');
@@ -69,7 +69,7 @@ export class ContentChunker {
     let chunkIndex = 0;
 
     for (const line of lines) {
-      const lineWithNewline = line + '\n';
+      const lineWithNewline = `${line}\n`;
 
       if (currentChunk.length + lineWithNewline.length > maxChunkSizeChars) {
         if (currentChunk.length > 0) {
@@ -121,4 +121,4 @@ export class ContentChunker {
   chunk(text: string, max: number = 1000, filePath: string = ''): ChunkInfo[] {
     return Array.from(this.createChunks(text, max, filePath));
   }
-} 
+}
