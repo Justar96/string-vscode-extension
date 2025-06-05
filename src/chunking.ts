@@ -1,8 +1,35 @@
-import { ChunkInfo, ChunkValidationResult } from './types';
+import { ChunkInfo, ChunkValidationResult, PerformanceConfig } from './types';
 import { getLanguageFromPath } from './utils';
 import * as crypto from 'crypto';
+import { SemanticChunker } from './semanticChunker';
+import { CompressionManager } from './compressionUtils';
+import { PersistentCacheManager } from './cacheManager';
 
 export class ContentChunker {
+  private semanticChunker: SemanticChunker;
+  private compressionManager: CompressionManager;
+  private cacheManager: PersistentCacheManager | null = null;
+  private performanceConfig: PerformanceConfig;
+
+  constructor(performanceConfig: PerformanceConfig, cacheDir?: string) {
+    this.performanceConfig = performanceConfig;
+    this.semanticChunker = new SemanticChunker(performanceConfig.streamingChunkSize);
+    this.compressionManager = new CompressionManager(performanceConfig.compressionThreshold);
+
+    if (cacheDir && performanceConfig.enableChunkDeduplication) {
+      this.cacheManager = new PersistentCacheManager(
+        cacheDir,
+        performanceConfig.maxCacheSize,
+        performanceConfig.cacheExpiryHours
+      );
+    }
+  }
+
+  async initialize(): Promise<void> {
+    if (this.cacheManager) {
+      await this.cacheManager.initialize();
+    }
+  }
 
   /**
    * Validates a chunk of content
@@ -64,6 +91,17 @@ export class ContentChunker {
   *createChunks(text: string, maxChunkSizeChars: number, filePath: string = ''): Generator<ChunkInfo, void, unknown> {
     if (!text || text.length === 0) return;
 
+    // Use semantic chunking if enabled
+    if (this.performanceConfig.enableSemanticChunking) {
+      yield* this.semanticChunker.createSemanticChunks(text, filePath);
+      return;
+    }
+
+    // Fallback to line-based chunking
+    yield* this.createLineBasedChunks(text, maxChunkSizeChars, filePath);
+  }
+
+  private *createLineBasedChunks(text: string, maxChunkSizeChars: number, filePath: string): Generator<ChunkInfo, void, unknown> {
     const lines = text.split('\n');
     let currentChunk = '';
     let chunkIndex = 0;
@@ -112,6 +150,97 @@ export class ContentChunker {
         metadata: validation.metadata,
         hash: this.generateChunkHash(content, filePath, chunkIndex)
       };
+    }
+  }
+
+  /**
+   * Checks if a chunk already exists in cache
+   */
+  async isChunkCached(hash: string): Promise<boolean> {
+    if (!this.cacheManager || !this.performanceConfig.enableChunkDeduplication) {
+      return false;
+    }
+    return await this.cacheManager.has(hash);
+  }
+
+  /**
+   * Adds chunk to cache
+   */
+  async cacheChunk(hash: string, chunkId: string): Promise<void> {
+    if (!this.cacheManager || !this.performanceConfig.enableChunkDeduplication) {
+      return;
+    }
+
+    await this.cacheManager.set(hash, {
+      hash,
+      exists: true,
+      timestamp: new Date(),
+      chunkId
+    });
+  }
+
+  /**
+   * Compresses chunk content if beneficial
+   */
+  async compressChunk(content: string): Promise<{ content: string; compressed: boolean; originalSize: number; compressedSize: number }> {
+    if (!this.performanceConfig.enableCompression) {
+      return {
+        content,
+        compressed: false,
+        originalSize: content.length,
+        compressedSize: content.length
+      };
+    }
+
+    const compressionResult = await this.compressionManager.compressIfBeneficial(content);
+
+    if (compressionResult) {
+      return {
+        content: compressionResult.compressed.toString('base64'),
+        compressed: true,
+        originalSize: compressionResult.originalSize,
+        compressedSize: compressionResult.compressedSize
+      };
+    }
+
+    return {
+      content,
+      compressed: false,
+      originalSize: content.length,
+      compressedSize: content.length
+    };
+  }
+
+  /**
+   * Creates streaming chunks for large files
+   */
+  async *createStreamingChunks(
+    text: string,
+    maxChunkSizeChars: number,
+    filePath: string,
+    onProgress?: (bytesProcessed: number, totalBytes: number) => void
+  ): AsyncGenerator<ChunkInfo, void, unknown> {
+    if (!this.performanceConfig.enableProgressiveStreaming) {
+      yield* this.createChunks(text, maxChunkSizeChars, filePath);
+      return;
+    }
+
+    const totalBytes = Buffer.byteLength(text, 'utf8');
+    let bytesProcessed = 0;
+
+    for (const chunk of this.createChunks(text, maxChunkSizeChars, filePath)) {
+      bytesProcessed += Buffer.byteLength(chunk.content, 'utf8');
+      onProgress?.(bytesProcessed, totalBytes);
+      yield chunk;
+
+      // Add small delay for backpressure handling
+      await new Promise(resolve => setImmediate(resolve));
+    }
+  }
+
+  async dispose(): Promise<void> {
+    if (this.cacheManager) {
+      await this.cacheManager.dispose();
     }
   }
 

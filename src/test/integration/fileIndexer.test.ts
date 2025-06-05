@@ -59,19 +59,19 @@ suite('FileIndexer Tests', () => {
   let mockVectorStoreManager: MockVectorStoreManager;
 
   setup(() => {
-    fileIndexer = new FileIndexer();
+    fileIndexer = new FileIndexer('./test-cache');
     mockVectorStoreManager = new MockVectorStoreManager();
     fileIndexer.setVectorStoreManager(mockVectorStoreManager);
   });
 
   suite('Initialization', () => {
     test('should initialize with content chunker', () => {
-      const newIndexer = new FileIndexer();
+      const newIndexer = new FileIndexer('./test-cache');
       assert.ok(newIndexer, 'Should create FileIndexer instance');
     });
 
     test('should set vector store manager', () => {
-      const newIndexer = new FileIndexer();
+      const newIndexer = new FileIndexer('./test-cache');
       const manager = new MockVectorStoreManager();
 
       // Should not throw

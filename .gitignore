@@ -131,3 +131,4 @@ dist
 /mcp-codebase-server-use_for_example_only
 /.idea
 *.vsix
+/test-data

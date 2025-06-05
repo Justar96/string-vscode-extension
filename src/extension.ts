@@ -6,7 +6,7 @@ import { FileIndexer } from './indexing';
 import { DashboardWebviewViewProvider, WebhookServer } from './services';
 import { StatusManager } from './statusManager';
 import { McpFileTreeItem, McpTreeDataProvider } from './treeView';
-import { FileItem } from './types';
+import { ExtensionConfigEnhanced, FileItem, PerformanceConfig } from './types';
 import { debounce, getExtensionConfig } from './utils';
 import { VectorStoreManager } from './vectorStoreManager';
 import { VectorStoreWebviewProvider } from './vectorStoreWebview';
@@ -34,15 +34,40 @@ class ExtensionState {
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
 
-    // Initialize file services
+    // Get performance configuration
+    const config = getExtensionConfig() as ExtensionConfigEnhanced;
+    const performanceConfig: PerformanceConfig = config.performance || {
+      enableChunkDeduplication: true,
+      enableCompression: true,
+      compressionThreshold: 1024,
+      enableSemanticChunking: true,
+      enableDeltaIndexing: true,
+      enableConnectionPooling: true,
+      maxConnectionPoolSize: 5,
+      enableRequestCoalescing: true,
+      coalescingWindowMs: 100,
+      enableProgressiveStreaming: true,
+      streamingChunkSize: 2000,
+      enableEnhancedProgress: true,
+      cacheExpiryHours: 24,
+      maxCacheSize: 10000
+    };
+
+    // Initialize file services with performance config
     this.fileScanner = new FileScanner();
-    this.fileIndexer = new FileIndexer();
+    const cacheDir = context.globalStorageUri.fsPath;
+    this.fileIndexer = new FileIndexer(cacheDir, performanceConfig);
 
     // Initialize vector store manager
     this.vectorStoreManager = new VectorStoreManager(context);
 
     // Connect vector store manager to file indexer
     this.fileIndexer.setVectorStoreManager(this.vectorStoreManager);
+
+    // Initialize file indexer with performance features
+    this.fileIndexer.initialize().catch(error => {
+      console.error('Failed to initialize file indexer:', error);
+    });
 
     // Initialize tree view
     this.treeDataProvider = new McpTreeDataProvider();

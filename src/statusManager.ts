@@ -1,11 +1,14 @@
 import * as vscode from 'vscode';
-import { DashboardStats, IndexingState, JobMetrics } from './types';
+import { DashboardStats, EnhancedProgressMetrics, IndexingState, JobMetrics } from './types';
+import { StreamingProgressManager } from './enhancedProgressTracker';
 
 export class StatusManager {
   private statusBarItem: vscode.StatusBarItem;
   private indexingState: IndexingState;
   private dashboardStats: DashboardStats;
   private activeJobMetrics: Map<string, JobMetrics>;
+  private progressManager: StreamingProgressManager;
+  private enhancedMetrics: EnhancedProgressMetrics | null = null;
 
   constructor(statusBarItem: vscode.StatusBarItem) {
     this.statusBarItem = statusBarItem;
@@ -32,6 +35,7 @@ export class StatusManager {
     };
 
     this.activeJobMetrics = new Map();
+    this.progressManager = new StreamingProgressManager();
   }
 
   // ─── Indexing State Management ─────────────────────────────────────────
@@ -241,8 +245,65 @@ export class StatusManager {
     });
   }
 
+  // ─── Enhanced Progress Tracking ────────────────────────────────────────
+  setEnhancedMetrics(metrics: EnhancedProgressMetrics): void {
+    this.enhancedMetrics = metrics;
+    this.updateStatusBar();
+  }
+
+  getEnhancedMetrics(): EnhancedProgressMetrics | null {
+    return this.enhancedMetrics;
+  }
+
+  getProgressManager(): StreamingProgressManager {
+    return this.progressManager;
+  }
+
+  private updateStatusBarWithEnhancedMetrics(): void {
+    if (!this.enhancedMetrics || !this.indexingState.isIndexing) {
+      this.updateStatusBar();
+      return;
+    }
+
+    const _autoIcon = this.indexingState.autoIndexEnabled ? '$(sync)' : '$(sync-ignored)';
+    const eta = this.formatTimeRemaining(this.enhancedMetrics.estimatedTimeRemaining);
+    const throughput = this.formatThroughput(this.enhancedMetrics.throughputBytesPerSecond);
+
+    const text = `$(loading~spin) String Indexing (${this.indexingState.indexedFiles}/${this.indexingState.totalFiles}) | ETA: ${eta} | ${throughput} $(stop)`;
+    const tooltip = `String is indexing files.\nETA: ${eta}\nThroughput: ${throughput}\nLatency: ${this.enhancedMetrics.networkLatency.toFixed(0)}ms\nClick to stop.`;
+
+    this.statusBarItem.text = text;
+    this.statusBarItem.tooltip = tooltip;
+    this.statusBarItem.command = 'mcpIndex.stopIndexing';
+  }
+
+  private formatTimeRemaining(seconds: number): string {
+    if (seconds < 60) {
+      return `${Math.round(seconds)}s`;
+    } else if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = Math.round(seconds % 60);
+      return `${minutes}m ${remainingSeconds}s`;
+    } else {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${hours}h ${minutes}m`;
+    }
+  }
+
+  private formatThroughput(bytesPerSecond: number): string {
+    if (bytesPerSecond < 1024) {
+      return `${Math.round(bytesPerSecond)} B/s`;
+    } else if (bytesPerSecond < 1024 * 1024) {
+      return `${Math.round(bytesPerSecond / 1024)} KB/s`;
+    } else {
+      return `${Math.round(bytesPerSecond / (1024 * 1024))} MB/s`;
+    }
+  }
+
   dispose(): void {
     this.statusBarItem.dispose();
+    this.progressManager.cleanup();
     this.cleanup();
   }
 }

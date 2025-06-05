@@ -5,11 +5,16 @@ import { ContentChunker } from './chunking';
 import {
   ChunkInfo,
   ChunkTransmissionResult,
+  ExtensionConfigEnhanced,
   FileIndexingStats,
   FileItem,
+  PerformanceConfig,
   VectorStoreSelectionContext
 } from './types';
 import { anySignal, getExtensionConfig, getOrCreateUserId } from './utils';
+import { DeltaIndexer } from './deltaIndexer';
+import { ChunkRequestBatcher, HttpConnectionPool } from './connectionPool';
+import { EnhancedProgressTracker } from './enhancedProgressTracker';
 
 // Add proper interface for vector store manager
 interface IVectorStoreManager {
@@ -19,10 +24,44 @@ interface IVectorStoreManager {
 
 export class FileIndexer {
   private contentChunker: ContentChunker;
-  private vectorStoreManager?: IVectorStoreManager; // Proper typing instead of any
+  private vectorStoreManager?: IVectorStoreManager;
+  private deltaIndexer: DeltaIndexer;
+  private connectionPool: HttpConnectionPool;
+  private requestBatcher: ChunkRequestBatcher;
+  private progressTracker: EnhancedProgressTracker | null = null;
+  private performanceConfig: PerformanceConfig;
 
-  constructor() {
-    this.contentChunker = new ContentChunker();
+  constructor(cacheDir: string, performanceConfig?: PerformanceConfig) {
+    // Set default performance config
+    this.performanceConfig = performanceConfig || {
+      enableChunkDeduplication: true,
+      enableCompression: true,
+      compressionThreshold: 1024,
+      enableSemanticChunking: true,
+      enableDeltaIndexing: true,
+      enableConnectionPooling: true,
+      maxConnectionPoolSize: 5,
+      enableRequestCoalescing: true,
+      coalescingWindowMs: 100,
+      enableProgressiveStreaming: true,
+      streamingChunkSize: 2000,
+      enableEnhancedProgress: true,
+      cacheExpiryHours: 24,
+      maxCacheSize: 10000
+    };
+
+    this.contentChunker = new ContentChunker(this.performanceConfig, cacheDir);
+    this.deltaIndexer = new DeltaIndexer(cacheDir);
+    this.connectionPool = new HttpConnectionPool(this.performanceConfig.maxConnectionPoolSize);
+    this.requestBatcher = new ChunkRequestBatcher(
+      this.performanceConfig.coalescingWindowMs,
+      10 // max batch size
+    );
+  }
+
+  async initialize(): Promise<void> {
+    await this.contentChunker.initialize();
+    await this.deltaIndexer.initialize();
   }
 
   setVectorStoreManager(manager: IVectorStoreManager): void {
@@ -89,15 +128,28 @@ export class FileIndexer {
     ) => void,
     abortSignal?: AbortSignal
   ): Promise<{ successCount: number; errorCount: number }> {
+    // Filter files using delta indexing if enabled
+    let filesToProcess = files;
+    if (this.performanceConfig.enableDeltaIndexing) {
+      filesToProcess = await this.deltaIndexer.getModifiedFiles(files);
+      console.log(`Delta indexing: Processing ${filesToProcess.length} of ${files.length} files`);
+    }
+
+    // Initialize enhanced progress tracking
+    if (this.performanceConfig.enableEnhancedProgress) {
+      const totalBytes = await this.calculateTotalBytes(filesToProcess);
+      const estimatedChunks = Math.ceil(totalBytes / this.performanceConfig.streamingChunkSize);
+      this.progressTracker = new EnhancedProgressTracker(totalBytes, estimatedChunks);
+    }
     let successCount = 0;
     let errorCount = 0;
-    const config = getExtensionConfig();
+    const config = getExtensionConfig() as ExtensionConfigEnhanced;
     const batchSize = Math.max(1, Math.min(config.batchSize, 10));
 
-    for (let i = 0; i < files.length; i += batchSize) {
+    for (let i = 0; i < filesToProcess.length; i += batchSize) {
       if (abortSignal?.aborted) break;
 
-      const batch = files.slice(i, Math.min(i + batchSize, files.length));
+      const batch = filesToProcess.slice(i, Math.min(i + batchSize, filesToProcess.length));
 
       const batchPromises = batch.map(async (file, index) => {
         const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -121,10 +173,15 @@ export class FileIndexer {
           );
           const estimatedTokens = Math.round(stats.totalBytes / 4);
 
+          // Update delta index with successful processing
+          if (this.performanceConfig.enableDeltaIndexing && stats.successfulChunks > 0) {
+            await this.deltaIndexer.updateFileInfo(file, []);
+          }
+
           onJobComplete?.(jobId, true, stats.successfulChunks, estimatedTokens);
           successCount++;
 
-          onProgress?.(i + index + 1, files.length, file.relativePath);
+          onProgress?.(i + index + 1, filesToProcess.length, file.relativePath);
           return stats;
         } catch (error) {
           onJobComplete?.(jobId, false);
@@ -137,12 +194,33 @@ export class FileIndexer {
       await Promise.allSettled(batchPromises);
 
       // Small delay between batches
-      if (i + batchSize < files.length && !abortSignal?.aborted) {
+      if (i + batchSize < filesToProcess.length && !abortSignal?.aborted) {
         await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
 
+    // Flush any remaining batched requests
+    if (this.performanceConfig.enableRequestCoalescing) {
+      await this.requestBatcher.flush();
+    }
+
     return { successCount, errorCount };
+  }
+
+  /**
+   * Calculates total bytes for files to be processed
+   */
+  private async calculateTotalBytes(files: FileItem[]): Promise<number> {
+    let totalBytes = 0;
+    for (const file of files) {
+      try {
+        const stats = await fs.stat(file.uri.fsPath);
+        totalBytes += stats.size;
+      } catch (error) {
+        console.warn(`Failed to get size for ${file.relativePath}:`, error);
+      }
+    }
+    return totalBytes;
   }
 
   /**
@@ -194,54 +272,33 @@ export class FileIndexer {
       ? path.relative(workspaceFolder.uri.fsPath, uri.fsPath)
       : path.basename(uri.fsPath);
 
-    const chunks = Array.from(
-      this.contentChunker.createChunks(fileContent, maxChunkSizeChars, uri.fsPath)
-    );
-    stats.totalChunks = chunks.length;
+    // Use streaming chunks if enabled for large files
+    const useStreaming = this.performanceConfig.enableProgressiveStreaming && stats.totalBytes > 50000;
 
-    const config = getExtensionConfig();
-    const concurrencyLimit = config.batchSize > 3 ? 2 : 1;
-
-    for (let i = 0; i < chunks.length; i += concurrencyLimit) {
-      if (abortSignal?.aborted) {
-        stats.errors.push('Operation cancelled');
-        break;
-      }
-
-      const chunkBatch = chunks.slice(i, Math.min(i + concurrencyLimit, chunks.length));
-      const batchPromises = chunkBatch.map(async chunkInfo => {
-        if (abortSignal?.aborted) return;
-
-        try {
-          const result = await this.sendChunkWithRetry(
-            chunkInfo,
-            relativePath,
-            url,
-            headers,
-            abortSignal,
-            jobId || ''
-          );
-          if (result.success) {
-            stats.successfulChunks++;
-          } else {
-            stats.failedChunks++;
-            stats.errors.push(`Chunk ${chunkInfo.index}: ${result.error || 'Unknown send error'}`);
-          }
-        } catch (error: any) {
-          if (error.name === 'AbortError' || abortSignal?.aborted) {
-            return;
-          }
-          stats.failedChunks++;
-          stats.errors.push(`Chunk ${chunkInfo.index} critical error: ${error.message}`);
-        }
-      });
-
-      await Promise.allSettled(batchPromises);
-      if (abortSignal?.aborted) break;
-
-      if (i + concurrencyLimit < chunks.length) {
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
+    if (useStreaming) {
+      await this.processFileWithStreaming(
+        fileContent,
+        maxChunkSizeChars,
+        uri.fsPath,
+        relativePath,
+        url,
+        headers,
+        stats,
+        abortSignal,
+        jobId || ''
+      );
+    } else {
+      await this.processFileWithBatching(
+        fileContent,
+        maxChunkSizeChars,
+        uri.fsPath,
+        relativePath,
+        url,
+        headers,
+        stats,
+        abortSignal,
+        jobId || ''
+      );
     }
 
     if (abortSignal?.aborted && !stats.errors.includes('Operation cancelled')) {
@@ -404,5 +461,192 @@ export class FileIndexer {
         }. Please check configuration and server status.`
       );
     }
+  }
+
+  /**
+   * Processes file with streaming for large files
+   */
+  private async processFileWithStreaming(
+    fileContent: string,
+    maxChunkSizeChars: number,
+    filePath: string,
+    relativePath: string,
+    url: string,
+    headers: Record<string, string>,
+    stats: FileIndexingStats,
+    abortSignal?: AbortSignal,
+    jobId: string = ''
+  ): Promise<void> {
+    let processedChunks = 0;
+    const _totalBytes = Buffer.byteLength(fileContent, 'utf8');
+
+    for await (const chunkInfo of this.contentChunker.createStreamingChunks(
+      fileContent,
+      maxChunkSizeChars,
+      filePath,
+      (bytesProcessed) => {
+        if (this.progressTracker) {
+          this.progressTracker.updateProgress(bytesProcessed, processedChunks);
+        }
+      }
+    )) {
+      if (abortSignal?.aborted) {
+        stats.errors.push('Operation cancelled');
+        break;
+      }
+
+      stats.totalChunks++;
+
+      try {
+        // Check cache first if deduplication is enabled
+        if (this.performanceConfig.enableChunkDeduplication) {
+          const isCached = await this.contentChunker.isChunkCached(chunkInfo.hash);
+          if (isCached) {
+            stats.successfulChunks++;
+            processedChunks++;
+            continue;
+          }
+        }
+
+        // Use request batching if enabled
+        if (this.performanceConfig.enableRequestCoalescing) {
+          const batchRequest = {
+            chunks: [chunkInfo],
+            filePath: relativePath,
+            priority: 1,
+            timestamp: new Date()
+          };
+
+          const results = await this.requestBatcher.addRequest(batchRequest);
+          const result = results[0];
+
+          if (result.success) {
+            stats.successfulChunks++;
+            if (this.performanceConfig.enableChunkDeduplication) {
+              await this.contentChunker.cacheChunk(chunkInfo.hash, result.chunkId || '');
+            }
+          } else {
+            stats.failedChunks++;
+            stats.errors.push(`Chunk ${chunkInfo.index}: ${result.error || 'Unknown error'}`);
+          }
+        } else {
+          const result = await this.sendChunkWithRetry(
+            chunkInfo,
+            relativePath,
+            url,
+            headers,
+            abortSignal,
+            jobId
+          );
+
+          if (result.success) {
+            stats.successfulChunks++;
+            if (this.performanceConfig.enableChunkDeduplication) {
+              await this.contentChunker.cacheChunk(chunkInfo.hash, result.chunkId || '');
+            }
+          } else {
+            stats.failedChunks++;
+            stats.errors.push(`Chunk ${chunkInfo.index}: ${result.error || 'Unknown error'}`);
+          }
+        }
+
+        processedChunks++;
+
+        // Add small delay for backpressure
+        await new Promise(resolve => setImmediate(resolve));
+
+      } catch (error: any) {
+        if (error.name === 'AbortError' || abortSignal?.aborted) {
+          break;
+        }
+        stats.failedChunks++;
+        stats.errors.push(`Chunk ${chunkInfo.index} critical error: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Processes file with traditional batching
+   */
+  private async processFileWithBatching(
+    fileContent: string,
+    maxChunkSizeChars: number,
+    filePath: string,
+    relativePath: string,
+    url: string,
+    headers: Record<string, string>,
+    stats: FileIndexingStats,
+    abortSignal?: AbortSignal,
+    jobId: string = ''
+  ): Promise<void> {
+    const chunks = Array.from(
+      this.contentChunker.createChunks(fileContent, maxChunkSizeChars, filePath)
+    );
+    stats.totalChunks = chunks.length;
+
+    const config = getExtensionConfig();
+    const concurrencyLimit = config.batchSize > 3 ? 2 : 1;
+
+    for (let i = 0; i < chunks.length; i += concurrencyLimit) {
+      if (abortSignal?.aborted) {
+        stats.errors.push('Operation cancelled');
+        break;
+      }
+
+      const chunkBatch = chunks.slice(i, Math.min(i + concurrencyLimit, chunks.length));
+      const batchPromises = chunkBatch.map(async chunkInfo => {
+        if (abortSignal?.aborted) return;
+
+        try {
+          // Check cache first if deduplication is enabled
+          if (this.performanceConfig.enableChunkDeduplication) {
+            const isCached = await this.contentChunker.isChunkCached(chunkInfo.hash);
+            if (isCached) {
+              stats.successfulChunks++;
+              return;
+            }
+          }
+
+          const result = await this.sendChunkWithRetry(
+            chunkInfo,
+            relativePath,
+            url,
+            headers,
+            abortSignal,
+            jobId
+          );
+
+          if (result.success) {
+            stats.successfulChunks++;
+            if (this.performanceConfig.enableChunkDeduplication) {
+              await this.contentChunker.cacheChunk(chunkInfo.hash, result.chunkId || '');
+            }
+          } else {
+            stats.failedChunks++;
+            stats.errors.push(`Chunk ${chunkInfo.index}: ${result.error || 'Unknown send error'}`);
+          }
+        } catch (error: any) {
+          if (error.name === 'AbortError' || abortSignal?.aborted) {
+            return;
+          }
+          stats.failedChunks++;
+          stats.errors.push(`Chunk ${chunkInfo.index} critical error: ${error.message}`);
+        }
+      });
+
+      await Promise.allSettled(batchPromises);
+      if (abortSignal?.aborted) break;
+
+      if (i + concurrencyLimit < chunks.length) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
+  }
+
+  async dispose(): Promise<void> {
+    await this.contentChunker.dispose();
+    await this.deltaIndexer.dispose();
+    await this.connectionPool.destroy();
+    await this.requestBatcher.destroy();
   }
 }
