@@ -130,3 +130,4 @@ dist
 .pnp.*
 /mcp-codebase-server-use_for_example_only
 /.idea
+*.vsix
