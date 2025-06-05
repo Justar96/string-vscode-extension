@@ -6,6 +6,8 @@ tsconfig.json
 eslint.config.mjs
 .gitignore
 .vscode-test.mjs
+.env
+.env.*
 
 # Test and build artifacts
 out/test/**
@@ -23,13 +25,15 @@ BACKEND_COMPLIANCE_SUMMARY.md
 mcp_server_example.py
 termite-logo-v1.png
 
-# Node modules - include only what's necessary
-node_modules/**
-!node_modules/express/package.json
-!node_modules/express/index.js
-!node_modules/express/LICENSE
-!node_modules/express/lib/**
-!node_modules/node-fetch/package.json
-!node_modules/node-fetch/LICENSE.md
-!node_modules/node-fetch/src/**
-!node_modules/node-fetch/@types/**
+# Include only production dependencies (exclude dev dependencies)
+node_modules/.bin/**
+node_modules/@types/**
+node_modules/@typescript-eslint/**
+node_modules/@vscode/**
+node_modules/eslint/**
+node_modules/typescript/**
+node_modules/@eslint/**
+node_modules/mocha/**
+
+# Include everything else from node_modules (production dependencies)
+# This ensures all runtime dependencies and their sub-dependencies are included

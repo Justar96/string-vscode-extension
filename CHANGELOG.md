@@ -2,6 +2,23 @@
 
 All notable changes to the String Codebase Indexer extension are documented in this file.
 
+## [0.0.6] - 2025-06-05
+
+### Fixed
+- fixed selction for files and folder
+
+## [0.0.5] - 2024-12-19
+
+### Fixed
+- **Dependencies**: Fixed missing runtime dependencies issue that prevented extension from working after installation
+- **Packaging**: Updated .vscodeignore to properly include all required node_modules dependencies
+- **TypeScript**: Added skipLibCheck option to resolve compilation issues with third-party library types
+- **Build**: Fixed extension packaging to include Express.js, node-fetch, and all their sub-dependencies
+
+### Changed
+- **Reliability**: Extension now packages all necessary dependencies ensuring it works immediately after installation
+- **Size**: Increased package size to 1.49MB to include all required runtime dependencies (5.17MB of node_modules)
+
 ## [0.0.4] - 2024-12-19
 
 ### Changed

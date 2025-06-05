@@ -2,8 +2,8 @@
   "name": "string-codebase-indexer",
   "displayName": "String",
   "description": "🚀 Codebase indexing with real-time processing dashboard and webhook notifications",
-  "version": "0.0.4",
-  "publisher": "justar",
+  "version": "0.0.6",
+  "publisher": "Justarr",
   "license": "MIT",
   "icon": "icon.png",
   "repository": {
