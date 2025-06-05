@@ -140,3 +140,4 @@ Thumbs.db
 
 # Package files
 *.vsix.backup
+/.vscode-test
